@@ -47,6 +47,22 @@ ORDER BY
     _event_time
 ```
 
+# Installation
+
+Install the plugin using the `grafana-cli`
+
+```
+grafana-cli \
+  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.0.zip \
+  plugins install rockset-backend-datasource
+```
+
+Since this is a backend plugin, it requires the plugin to be signed,
+which the 
+[Grafana team hasn't implemented yet](https://grafana.com/docs/grafana/latest/developers/plugins/sign-a-plugin/), 
+so you have to set the environment variable
+`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` to `rockset-backend-datasource` for the plugin to be loaded.
+
 # Development
 
 The Rockset data source backend plugin consists of both frontend and backend components.
