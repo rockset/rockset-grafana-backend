@@ -1,6 +1,6 @@
 # Grafana Rockset Data Source Backend Plugin
 
-[![CircleCI](https://circleci.com/gh/rockset/rockset-datasource-backend/tree/master.svg?style=svg)](https://circleci.com/gh/rockset/rockset-datasource-backend/tree/master)
+[![CircleCI](https://circleci.com/gh/rockset/rockset-grafana-backend/tree/master.svg?style=svg)](https://circleci.com/gh/rockset/rockset-grafana-backend/tree/master)
 
 The Rockset plugin lets you write queries against your Rockset collections and visualize the
 results in Grafana. 
