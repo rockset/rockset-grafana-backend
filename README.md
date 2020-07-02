@@ -98,7 +98,7 @@ Run grafana in a docker container
 docker run -d \
     -p 3000:3000 \
     -v "$(pwd)/..:/var/lib/grafana/plugins" \
-    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-datasource-backend" \
+    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
     --name=grafana \
     grafana/grafana:7.0.5
 ```

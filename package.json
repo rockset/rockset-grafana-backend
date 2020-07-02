@@ -1,5 +1,5 @@
 {
-  "name": "rockset-datasource-backendt",
+  "name": "rockset-backend-datasource",
   "version": "0.1.0",
   "description": "Rockset backend datasource",
   "scripts": {
