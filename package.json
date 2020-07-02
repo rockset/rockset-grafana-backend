@@ -1,0 +1,23 @@
+{
+  "name": "rockset-datasource-backendt",
+  "version": "0.1.0",
+  "description": "Rockset backend datasource",
+  "scripts": {
+    "build": "grafana-toolkit plugin:build",
+    "test": "grafana-toolkit plugin:test",
+    "dev": "grafana-toolkit plugin:dev",
+    "watch": "grafana-toolkit plugin:dev --watch"
+  },
+  "author": "Rockset Inc",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@grafana/data": "7.0.5",
+    "@grafana/toolkit": "7.0.5",
+    "@grafana/runtime": "7.0.5",
+    "@grafana/ui": "7.0.5",
+    "@types/lodash": "latest"
+  },
+  "engines": {
+    "node": ">=12 <=14"
+  }
+}
