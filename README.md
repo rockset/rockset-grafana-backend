@@ -63,6 +63,18 @@ which the
 so you have to set the environment variable
 `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` to `rockset-backend-datasource` for the plugin to be loaded.
 
+Now you can add a new datasource
+
+![image](img/plugin.png)
+
+You get the API key from the [Rockset console](https://console.rockset.com/apikeys) and then enter it in the plugin configuration.
+
+![image](img/plugin-config.png)
+
+Now you are ready to add a new panel and can select the new datasource you added
+
+![image](img/labels.png)
+
 ## Test-driving the plugin
 
 If you want to test the plugin before you install it on your production Grafana server, you can use docker
@@ -85,7 +97,9 @@ After this you should see a line in the logs like this
 t=2020-07-09T15:42:28+0000 lvl=warn msg="Running an unsigned backend plugin" logger=plugins pluginID=rockset-backend-datasource pluginDir=/var/lib/grafana/plugins/rockset-backend-datasource
 ```
 
-# Development
+which shows that the plugin loaded correctly.
+
+# Plugin Development
 
 The Rockset data source backend plugin consists of both frontend and backend components.
 
