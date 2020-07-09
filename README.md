@@ -3,7 +3,7 @@
 [![CircleCI](https://circleci.com/gh/rockset/rockset-grafana-backend/tree/master.svg?style=svg)](https://circleci.com/gh/rockset/rockset-grafana-backend/tree/master)
 
 The Rockset plugin lets you write queries against your Rockset collections and visualize the
-results in Grafana. 
+results as time series in Grafana.
 
 Detailed setup instructions can be found in the [Rockset documentation](https://docs.rockset.com/grafana/).
 
@@ -49,7 +49,7 @@ ORDER BY
 
 # Installation
 
-Install the plugin using the `grafana-cli`
+Install the plugin using the `grafana-cli`. Note that the plugin require Grafana 7.x!
 
 ```
 grafana-cli \
@@ -62,6 +62,28 @@ which the
 [Grafana team hasn't implemented yet](https://grafana.com/docs/grafana/latest/developers/plugins/sign-a-plugin/), 
 so you have to set the environment variable
 `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` to `rockset-backend-datasource` for the plugin to be loaded.
+
+## Test-driving the plugin
+
+If you want to test the plugin before you install it on your production Grafana server, you can use docker
+
+```
+docker run -d \
+    -p 3000:3000 \
+    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
+    --name=grafana \
+    grafana/grafana:7.0.5
+docker exec grafana-cli \
+    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.0.zip \
+    plugins install rockset-backend-datasource
+docker restart grafana
+```
+
+After this you should see a line in the logs like this
+
+```
+t=2020-07-09T15:42:28+0000 lvl=warn msg="Running an unsigned backend plugin" logger=plugins pluginID=rockset-backend-datasource pluginDir=/var/lib/grafana/plugins/rockset-backend-datasource
+```
 
 # Development
 
@@ -124,11 +146,3 @@ Since Grafana only loads plugins on start-up, you need to restart the container 
 ```
 docker restart grafana
 ```
-
-## Learn more
-
-- [Build a data source backend plugin tutorial](https://grafana.com/tutorials/build-a-data-source-backend-plugin)
-- [Grafana documentation](https://grafana.com/docs/)
-- [Grafana Tutorials](https://grafana.com/tutorials/) - Grafana Tutorials are step-by-step guides that help you make the most of Grafana
-- [Grafana UI Library](https://developers.grafana.com/ui) - UI components to help you build interfaces using Grafana Design System
-- [Grafana plugin SDK for Go](https://grafana.com/docs/grafana/latest/developers/plugins/backend/grafana-plugin-sdk-for-go/)
