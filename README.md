@@ -53,7 +53,7 @@ Install the plugin using the `grafana-cli`. Note that the plugin require Grafana
 
 ```
 grafana-cli \
-  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.1.zip \
+  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.2.zip \
   plugins install rockset-backend-datasource
 ```
 
@@ -86,7 +86,7 @@ docker run -d \
     --name=grafana \
     grafana/grafana:7.0.5
 docker exec grafana-cli \
-    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.1.zip \
+    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.1.2.zip \
     plugins install rockset-backend-datasource
 docker restart grafana
 ```
