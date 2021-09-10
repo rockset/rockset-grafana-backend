@@ -1,4 +1,3 @@
-// module github.com/grafana/simple-datasource-backend
 module github.com/rockset/rockset-grafana-backend
 
 go 1.14

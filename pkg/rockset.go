@@ -156,10 +156,9 @@ func (rd *RocksetDatasource) query(ctx context.Context, rs *rockset.RockClient, 
   for label := range labelValues {
     for i, c := range qr.ColumnFields {
       // skip the time field and the label column
-      // if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
-      //   log.DefaultLogger.Info("Skipping row")
-      //   continue
-      // }
+      if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
+        continue
+      }
       log.DefaultLogger.Debug("column", "i", i, "name", c.Name, "label", label)
 
       // add the frames to the response
