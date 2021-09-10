@@ -224,6 +224,7 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 
   var times []time.Time
   var values []float64
+  var strValues []string
 
   var labels map[string]string
   // empty label means there is no label column and labels should use the zero value, which is nil
@@ -253,12 +254,23 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 
     // TODO: this is a bit naïve and could be improved, as the rows can be of different types
     f, ok := v.(float64)
+    if ok {
+      values = append(values, f)
+    }
     if !ok {
       // TODO: is there a way to send warnings back to the Grafana UI?
-      log.DefaultLogger.Error("could cast to float64", "column", valueField, "value", v)
-      continue
+      log.DefaultLogger.Error("could not cast to float64", "column", valueField, "value", v)
+      g, strOk := v.(string)
+      if strOk {
+        strValues = append(strValues, g)
+      }
+      if !strOk {
+        log.DefaultLogger.Error("could not cast to float64 or string", "column", valueField, "value", v)
+        continue
+      }
+
     }
-    values = append(values, f)
+
 
     // TODO: time conversion could be cached as it is parsed each call to makeFrame
     t, err := parseTime(m, timeField)
@@ -271,8 +283,11 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
   // add the time dimension
   frame.Fields = append(frame.Fields, data.NewField("time", labels, times))
   // add values
-  frame.Fields = append(frame.Fields, data.NewField(valueField, labels, values))
-
+  if len(values) > 0 {
+    frame.Fields = append(frame.Fields, data.NewField(valueField, labels, values))
+  } else if len(strValues) > 0 {
+    frame.Fields = append(frame.Fields, data.NewField(valueField, labels, strValues))
+  }
   return frame, nil
 }
 
@@ -285,7 +300,7 @@ func parseTime(fields map[string]interface{}, key string) (time.Time, error) {
 
   k, ok := ifc.(string)
   if !ok {
-    return time.Time{}, fmt.Errorf("could cast %s to string", key)
+    return time.Time{}, fmt.Errorf("could not cast %s to string", key)
   }
 
   t, err := time.Parse(time.RFC3339Nano, k)
