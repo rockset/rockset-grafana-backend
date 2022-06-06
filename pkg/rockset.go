@@ -104,14 +104,10 @@ func (rd *RocksetDatasource) query(ctx context.Context, rs *rockset.RockClient, 
     qm.QueryParamStop = strings.TrimPrefix(qm.QueryParamStop, ":")
   }
 
-  log.DefaultLogger.Info("query",
-    "interval", qm.IntervalMs,
-    "max data points", qm.MaxDataPoints,
-    "from", query.TimeRange.From,
-    "to", query.TimeRange.To,
-    "duration", query.TimeRange.To.Sub(query.TimeRange.From).String())
-
-  log.DefaultLogger.Debug("query", "SQL", qm.QueryText)
+  log.DefaultLogger.Info("query model",
+    "interval", qm.IntervalMs, "max data points", qm.MaxDataPoints, "query text", qm.QueryText)
+  log.DefaultLogger.Info("time range", "from", query.TimeRange.From, "to", query.TimeRange.To,
+    "d", query.TimeRange.To.Sub(query.TimeRange.From).String())
 
   var qr api.QueryResponse
   // TODO: use a ctx to make the Query so it the query can be cancelled, but this requires updating the Go client library
@@ -151,7 +147,7 @@ func (rd *RocksetDatasource) query(ctx context.Context, rs *rockset.RockClient, 
     response.Error = err
     return response
   }
-  log.DefaultLogger.Debug("labels", "values", labelValues)
+  log.DefaultLogger.Info("labels", "values", labelValues)
 
   for label := range labelValues {
     for i, c := range qr.ColumnFields {
@@ -159,7 +155,7 @@ func (rd *RocksetDatasource) query(ctx context.Context, rs *rockset.RockClient, 
       if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
         continue
       }
-      log.DefaultLogger.Debug("column", "i", i, "name", c.Name, "label", label)
+      log.DefaultLogger.Info("column", "i", i, "name", c.Name, "label", label)
 
       // add the frames to the response
       frame, err := makeFrame(qm.QueryTimeField, c.Name, qm.QueryLabelColumn, label, qr)
@@ -224,7 +220,6 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 
   var times []time.Time
   var values []float64
-  var strValues []string
 
   var labels map[string]string
   // empty label means there is no label column and labels should use the zero value, which is nil
@@ -254,23 +249,12 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 
     // TODO: this is a bit naïve and could be improved, as the rows can be of different types
     f, ok := v.(float64)
-    if ok {
-      values = append(values, f)
-    }
     if !ok {
       // TODO: is there a way to send warnings back to the Grafana UI?
-      log.DefaultLogger.Error("could not cast to float64", "column", valueField, "value", v)
-      g, strOk := v.(string)
-      if strOk {
-        strValues = append(strValues, g)
-      }
-      if !strOk {
-        log.DefaultLogger.Error("could not cast to float64 or string", "column", valueField, "value", v)
-        continue
-      }
-
+      log.DefaultLogger.Error("could cast to float64", "column", valueField, "value", v)
+      continue
     }
-
+    values = append(values, f)
 
     // TODO: time conversion could be cached as it is parsed each call to makeFrame
     t, err := parseTime(m, timeField)
@@ -283,11 +267,8 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
   // add the time dimension
   frame.Fields = append(frame.Fields, data.NewField("time", labels, times))
   // add values
-  if len(values) > 0 {
-    frame.Fields = append(frame.Fields, data.NewField(valueField, labels, values))
-  } else if len(strValues) > 0 {
-    frame.Fields = append(frame.Fields, data.NewField(valueField, labels, strValues))
-  }
+  frame.Fields = append(frame.Fields, data.NewField(valueField, labels, values))
+
   return frame, nil
 }
 
@@ -300,7 +281,7 @@ func parseTime(fields map[string]interface{}, key string) (time.Time, error) {
 
   k, ok := ifc.(string)
   if !ok {
-    return time.Time{}, fmt.Errorf("could not cast %s to string", key)
+    return time.Time{}, fmt.Errorf("could cast %s to string", key)
   }
 
   t, err := time.Parse(time.RFC3339Nano, k)
@@ -316,6 +297,8 @@ func parseTime(fields map[string]interface{}, key string) (time.Time, error) {
 // datasource configuration page which allows users to verify that
 // a datasource is working as expected.
 func (rd *RocksetDatasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+  log.DefaultLogger.Info("health check", "req", req.PluginContext.DataSourceInstanceSettings)
+
   apiKey, found := req.PluginContext.DataSourceInstanceSettings.DecryptedSecureJSONData["apiKey"]
   if !found {
     return healthError("failed to get api key"), nil
@@ -376,5 +359,5 @@ func newDataSourceInstance(setting backend.DataSourceInstanceSettings) (instance
 
 func (s *instanceSettings) Dispose() {
   // Called before creating a new instance to allow plugin authors to cleanup.
-  log.DefaultLogger.Debug("dispose")
+  log.DefaultLogger.Info("dispose")
 }

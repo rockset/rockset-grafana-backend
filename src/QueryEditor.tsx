@@ -82,7 +82,7 @@ export class QueryEditor extends PureComponent<Props> {
             labelWidth={8}
             label="Query Text"
             tooltip="Rockset SQL query to get the data. Must contain a WHERE clause which limits the query based on the startTime and stopTime."
-            inputEl={<TextArea style={{ height: '600px' }} value={queryText || ''} onChange={this.onQueryTextChange} />}
+            inputEl={<TextArea height={'100px'} value={queryText || ''} onChange={this.onQueryTextChange} />}
           />
         </div>
       </>

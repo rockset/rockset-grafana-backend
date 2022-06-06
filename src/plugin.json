@@ -1,13 +1,13 @@
 {
   "type": "datasource",
   "name": "Rockset",
-  "id": "rockset-backend-datasource",
+  "id": "rockset",
   "metrics": true,
   "backend": true,
   "alerting": true,
   "executable": "gpx_rockset-grafana",
   "info": {
-    "description": "Plugin for Rockset Collections as datasources",
+    "description": "",
     "author": {
       "name": "Rockset Inc",
       "url": "https://rockset.com"
@@ -24,16 +24,16 @@
     "links": [
       {
         "name": "Website",
-        "url": "https://github.com/rockset/rockset-grafana-backend"
+        "url": "https://github.com/rockset/rockset-grafana"
       },
       {
         "name": "License",
-        "url": "https://github.com/rockset/rockset-grafana-backend/blob/master/LICENSE"
+        "url": "https://github.com/rockset/rockset-grafana/blob/master/LICENSE"
       }
     ],
     "screenshots": [],
-    "version": "0.1.2",
-    "updated": "2021-05-20"
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
   },
   "dependencies": {
     "grafanaVersion": "7.x.x",
