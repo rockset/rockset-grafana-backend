@@ -1,20 +1,20 @@
 import defaults from 'lodash/defaults';
-
 import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms, TextArea } from '@grafana/ui';
 import { QueryEditorProps } from '@grafana/data';
-import { DataSource } from './DataSource';
-import { defaultQuery, RocksetDataSourceOptions, RocksetQuery } from './types';
+import { DataSource } from '../datasource';
+import { defaultQuery, RocksetDataSourceOptions, RocksetQuery } from '../types';
 
 const { FormField } = LegacyForms;
+const queryTextDataTestId = "rockset query text field";
+const queryLabelTestId = "rockset query label field";
 
 type Props = QueryEditorProps<DataSource, RocksetQuery, RocksetDataSourceOptions>;
 
 export class QueryEditor extends PureComponent<Props> {
-  onQueryTextChange = (event: any) => {
-    const { onChange, query, onRunQuery } = this.props;
-    onChange({ ...query, queryText: event.target.value as any });
-    onRunQuery();
+  onQueryTextChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const { onChange, query } = this.props;
+    onChange({ ...query, queryText: event.target.value });
   };
 
   onQueryParamStartChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +75,7 @@ export class QueryEditor extends PureComponent<Props> {
             onChange={this.onQueryLabelColumnChange}
             label="Label Column"
             tooltip="Name of the column used to label the time series"
+            data-testid={queryLabelTestId}
           />
         </div>
         <div>
@@ -82,7 +83,7 @@ export class QueryEditor extends PureComponent<Props> {
             labelWidth={8}
             label="Query Text"
             tooltip="Rockset SQL query to get the data. Must contain a WHERE clause which limits the query based on the startTime and stopTime."
-            inputEl={<TextArea style={{ height: '600px' }} value={queryText || ''} onChange={this.onQueryTextChange} />}
+            inputEl={<TextArea style={{ height: '600px' }} value={queryText || ''} onChange={this.onQueryTextChange} data-testid={queryTextDataTestId} />}
           />
         </div>
       </>

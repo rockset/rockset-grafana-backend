@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { MyVariableQuery } from './types';
+import { VariableQuery } from '../types';
 
 interface VariableQueryProps {
-  query: MyVariableQuery;
-  onChange: (query: MyVariableQuery, definition: string) => void;
+  query: VariableQuery;
+  onChange: (query: VariableQuery, definition: string) => void;
 }
 
 export const VariableQueryEditor: React.FC<VariableQueryProps> = ({ onChange, query }) => {

@@ -44,7 +44,7 @@ export interface RocksetSecureJsonData {
   apiKey?: string;
 }
 
-export interface MyVariableQuery extends RocksetQuery {
+export interface VariableQuery extends RocksetQuery {
   namespace: string;
   rawQuery: string;
   query: string;
