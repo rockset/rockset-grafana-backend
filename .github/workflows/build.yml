@@ -1,0 +1,45 @@
+name: rockset-grafana-plugin-build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on:
+    container: grafana/grafana-plugin-ci:1.6.3-alpine
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: yarn
+
+      - name: Install dependencies
+        run: |
+          mkdir ci
+          [ -f ~/project/node_modules/.bin/grafana-toolkit ] || yarn install --frozen-lockfile
+
+      - name: Build and test frontend
+        run: ./node_modules/.bin/grafana-toolkit plugin:ci-build
+
+      - name: Build backend
+        run: mage -v buildAll
+
+      - name: Test backend
+        run: |
+          mage -v lint
+          mage -v coverage
+
+      - name: Move results to ci folder
+        run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
+
+      - name: Package distribution
+        run: ./node_modules/.bin/grafana-toolkit plugin:ci-package
+
+      # check
+      - name: Persist to workspace
+        uses: actions/upload-artifact@v3
+        with:
+          name: plugin-dist
+          path: |
+            ci
+            !ci/build_plugin
