@@ -1,8 +1,13 @@
 name: rockset-grafana-plugin-build
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review]
 
 jobs:
   build:
+    concurrency:
+      group: ${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     container: grafana/grafana-plugin-ci:1.6.3-alpine
     steps:
@@ -10,7 +15,6 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
           cache: yarn
 
       - name: Install dependencies
