@@ -1,3 +1,5 @@
+# based on https://github.com/grafana/plugin-tools/blob/main/packages/create-plugin/templates/github/ci/.github/workflows/release.yml
+
 name: rockset-grafana-plugin-build
 on:
   pull_request:
@@ -9,29 +11,44 @@ jobs:
       group: ${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    container: grafana/grafana-plugin-ci:1.6.3-alpine
     steps:
       - uses: actions/checkout@v3
 
       - uses: actions/setup-node@v3
         with:
+          node-version: '16'
           cache: yarn
+      
+      - name: Setup Go environment
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
 
       - name: Install dependencies
         run: |
           mkdir ci
-          [ -f ~/project/node_modules/.bin/grafana-toolkit ] || yarn install --frozen-lockfile
+          yarn install --immutable --prefer-offline
 
       - name: Build and test frontend
-        run: ./node_modules/.bin/grafana-toolkit plugin:ci-build
+        run: yarn build
+      
+      - name: Test backend lint
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: lint
+      
+      - name: Test backend coverage
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: coverage
 
       - name: Build backend
-        run: mage -v buildAll
-
-      - name: Test backend
-        run: |
-          mage -v lint
-          mage -v coverage
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: buildAll
 
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
