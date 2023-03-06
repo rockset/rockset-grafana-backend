@@ -33,10 +33,10 @@ jobs:
         run: yarn build
       
       - name: Test backend lint
-        uses: magefile/mage-action@v2
+        uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
-          args: lint
+          # Optional: version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest` to use the latest version
+          version: v1.29
       
       - name: Test backend coverage
         uses: magefile/mage-action@v2
