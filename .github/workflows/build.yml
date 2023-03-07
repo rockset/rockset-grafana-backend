@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           mkdir ci
-          yarn install --immutable --prefer-offline
+          yarn install --pure-lockfile --prefer-offline
 
       - name: Build and test frontend
         run: yarn build
@@ -46,6 +46,9 @@ jobs:
         with:
           version: latest
           args: buildAll
+
+      - name: Add grafana-toolkit to path
+        run: echo "./node_modules/.bin" >> $GITHUB_PATH
 
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
