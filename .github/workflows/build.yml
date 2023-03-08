@@ -53,7 +53,7 @@ jobs:
 
       - name: Start grafana with plugin
         run: |
-          docker run -d --name=grafana -e GF_DEFAULT_APP_MODE=development -e GF_LOG_LEVEL=debug -v ../:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana:9.3.1
+          docker run -d --name=grafana -e GF_DEFAULT_APP_MODE=development -e GF_LOG_LEVEL=debug -v $(pwd):/var/lib/grafana/plugins/rockset-grafana-plugin -p 3000:3000 grafana/grafana:9.3.1
           timeout 10 bash -c 'until printf "" 2>>/dev/null >>/dev/tcp/$0/$1; do sleep 1; done' localhost 3000
 
       - name: Run e2e tests
