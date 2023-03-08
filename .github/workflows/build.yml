@@ -57,6 +57,8 @@ jobs:
           timeout 10 bash -c 'until printf "" 2>>/dev/null >>/dev/tcp/$0/$1; do sleep 1; done' localhost 3000
 
       - name: Run e2e tests
+        env:
+          CYPRESS_ROCKSET_APIKEY: ${{ secrets.ROCKSET_APIKEY_CI }}
         run: yarn e2e
 
       - name: Move results to ci folder
