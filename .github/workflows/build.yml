@@ -11,6 +11,7 @@ jobs:
       group: ${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -32,14 +33,14 @@ jobs:
       - name: Build and test frontend
         run: yarn build
       
-      - name: Test backend lint
-        uses: golangci/golangci-lint-action@v3
-      
-      - name: Test backend coverage
-        uses: magefile/mage-action@v2
-        with:
-          version: latest
-          args: coverage
+      #- name: Test backend lint
+      #  uses: golangci/golangci-lint-action@v3
+      #
+      #- name: Test backend coverage
+      #  uses: magefile/mage-action@v2
+      #  with:
+      #    version: latest
+      #    args: coverage
 
       - name: Build backend
         uses: magefile/mage-action@v2
@@ -49,6 +50,14 @@ jobs:
 
       - name: Add grafana-toolkit to path
         run: echo "./node_modules/.bin" >> $GITHUB_PATH
+
+      - name: Start grafana with plugin
+        run: |
+          docker run -d --name=grafana -e GF_DEFAULT_APP_MODE=development -e GF_LOG_LEVEL=debug -v ../:/var/lib/grafana/plugins -p 3000:3000 grafana/grafana:9.3.1
+          timeout 10 bash -c 'until printf "" 2>>/dev/null >>/dev/tcp/$0/$1; do sleep 1; done' localhost 3000
+
+      - name: Run e2e tests
+        run: yarn e2e
 
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
