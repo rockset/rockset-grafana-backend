@@ -50,7 +50,7 @@ e2e.scenario({
     const fromDate = fromDatePrime.toISOString().replace('T', ' ').replace('Z', '');
 
     e2e.flows.addDashboard({
-      title: 'rsNamespace',
+      title: rsNamespace,
       timeRange: {
         from: fromDate,
         to: toDate

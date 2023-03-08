@@ -32,15 +32,15 @@ jobs:
 
       - name: Build and test frontend
         run: yarn build
+
+      - name: Test backend lint
+        uses: golangci/golangci-lint-action@v3
       
-      #- name: Test backend lint
-      #  uses: golangci/golangci-lint-action@v3
-      #
-      #- name: Test backend coverage
-      #  uses: magefile/mage-action@v2
-      #  with:
-      #    version: latest
-      #    args: coverage
+      - name: Test backend coverage
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: coverage
 
       - name: Build backend
         uses: magefile/mage-action@v2
@@ -74,3 +74,4 @@ jobs:
           path: |
             ci
             !ci/build_plugin
+          retention-days: 1

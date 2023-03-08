@@ -1,8 +1,8 @@
 import { DataSourcePlugin } from '@grafana/data';
 import { DataSource } from './datasource';
-import { ConfigEditor } from './components/ConfigEditor';
-import { QueryEditor } from './components/QueryEditor';
-import { VariableQueryEditor } from 'components/VariableQueryEditor';
+import { ConfigEditor } from './components/configEditor';
+import { QueryEditor } from './components/queryEditor';
+import { VariableQueryEditor } from 'components/variableQueryEditor';
 import { RocksetQuery, RocksetDataSourceOptions } from './types';
 
 // TODO: setVariableQueryEditor is deprecated, but alternatives are marked alpha
