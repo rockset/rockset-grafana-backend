@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -121,7 +122,6 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 	log.DefaultLogger.Debug("query", "SQL", qm.QueryText)
 
 	var qr api.QueryResponse
-	// TODO: use a ctx to make the Query so it the query can be cancelled, but this requires updating the Go client library
 	// TODO: perhaps use Grafana variables instead of query parameters?
 	//   https://grafana.com/docs/grafana/latest/developers/plugins/add-support-for-variables/
 
@@ -133,10 +133,17 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 	log.DefaultLogger.Debug("query", "SQL", qm.QueryText)
 	qr, err = rs.Query(ctx, qm.QueryText, options...)
 	if err != nil {
-		// TODO: Should check against `AsRocksetError` equivalent?
-		log.DefaultLogger.Error("query error", "error", err.Error())
-		// # TODO: Catch appropriate errors
-		return backend.ErrDataResponse(backend.StatusUnknown, fmt.Sprintf("query error: %s", err.Error()))
+		var re rockset.Error
+		var errMessage string
+		statusCode := backend.StatusUnknown
+		if errors.As(err, &re) {
+			statusCode = backend.Status(re.StatusCode)
+			errMessage = fmt.Sprintf("query error: Error ID [%s] - Query ID [%s] - %s", re.GetErrorId(), re.GetQueryId(), re.Error())
+		} else {
+			errMessage = fmt.Sprintf("query error: %s", err.Error())
+		}
+		log.DefaultLogger.Error("query error", "error", errMessage)
+		return backend.ErrDataResponse(statusCode, errMessage)
 	}
 	log.DefaultLogger.Info("query response", "elapsedTime", qr.Stats.ElapsedTimeMs, "results", len(qr.Results))
 
@@ -179,12 +186,12 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 }
 
 // extract the set of label values from the label column
-func generateLabelValues(labelColumn string, results []map[string]interface{}) (map[string]bool, error) {
-	labels := make(map[string]bool)
+func generateLabelValues(labelColumn string, results []map[string]interface{}) (map[string]struct{}, error) {
+	labels := make(map[string]struct{})
 
 	// if there isn't any label column specified, add an empty string so we can use it as a special case
 	if labelColumn == "" {
-		labels[""] = true
+		labels[""] = struct{}{}
 		return labels, nil
 	}
 
@@ -199,7 +206,7 @@ func generateLabelValues(labelColumn string, results []map[string]interface{}) (
 			log.DefaultLogger.Error("could not cast label column value to string", "label", label)
 			continue
 		}
-		labels[l] = true
+		labels[l] = struct{}{}
 	}
 
 	if len(labels) == 0 {
@@ -282,7 +289,7 @@ func parseTime(fields map[string]interface{}, key string) (time.Time, error) {
 
 	k, ok := ifc.(string)
 	if !ok {
-		return time.Time{}, fmt.Errorf("could not cast %s to string", key)
+		return time.Time{}, fmt.Errorf("could not cast %s (%v) %T to string", key, ifc, ifc)
 	}
 
 	t, err := time.Parse(time.RFC3339Nano, k)

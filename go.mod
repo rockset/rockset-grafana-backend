@@ -1,4 +1,4 @@
-module github.com/rockset/rockset-grafana-backend-v1
+module github.com/rockset/rockset-grafana-backend
 
 go 1.19
 
