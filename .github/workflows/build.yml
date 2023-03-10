@@ -63,11 +63,11 @@ jobs:
 
       - name: Archive e2e test results
         if: always()
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v3
         with:
           name: e2e-test-results-video
           path: cypress/videos
-        retention-days: 1
+          retention-days: 1
 
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
@@ -75,7 +75,7 @@ jobs:
       - name: Package distribution
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-package
 
-      - name: Persist to workspace
+      - name: Persist build artifacts
         uses: actions/upload-artifact@v3
         with:
           name: plugin-dist
