@@ -61,6 +61,14 @@ jobs:
           CYPRESS_ROCKSET_APIKEY: ${{ secrets.ROCKSET_APIKEY_CI }}
         run: yarn e2e
 
+      - name: Archive e2e test results
+        if: always()
+        uses: actions/upload-artifact@v1
+        with:
+          name: e2e-test-results-video
+          path: cypress/videos
+          retention-days: 1
+
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
 
