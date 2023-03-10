@@ -67,7 +67,7 @@ jobs:
         with:
           name: e2e-test-results-video
           path: cypress/videos
-          retention-days: 1
+        retention-days: 1
 
       - name: Move results to ci folder
         run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
