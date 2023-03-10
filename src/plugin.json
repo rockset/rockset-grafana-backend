@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
   "name": "Rockset",
   "id": "rockset-backend-datasource",
@@ -13,6 +14,7 @@
       "url": "https://rockset.com"
     },
     "keywords": [
+      "datasource",
       "SQL",
       "JSON",
       "Rockset"
@@ -32,11 +34,11 @@
       }
     ],
     "screenshots": [],
-    "version": "0.1.2",
-    "updated": "2021-05-20"
+    "version": "0.2.0",
+    "updated": "2023-01-13"
   },
   "dependencies": {
-    "grafanaVersion": "7.x.x",
+    "grafanaDependency": "^9.2.5",
     "plugins": []
   }
 }

@@ -1,22 +1,29 @@
 import React, { ChangeEvent, PureComponent } from 'react';
 import { LegacyForms } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
-import { RocksetDataSourceOptions, RocksetSecureJsonData } from './types';
+import { RocksetDataSourceOptions, RocksetSecureJsonData } from '../types';
 
 const { SecretFormField, FormField } = LegacyForms;
 
-interface Props extends DataSourcePluginOptionsEditorProps<RocksetDataSourceOptions> {}
+interface Props extends DataSourcePluginOptionsEditorProps<RocksetDataSourceOptions> {};
 
-interface State {}
+interface State {};
+
+const apiServerDataTestId = "rockset api server configuration";
+const apiKeyDataTestId = "rockset api key configuration";
 
 export class ConfigEditor extends PureComponent<Props, State> {
-  onServerChange = (event: ChangeEvent<HTMLInputElement>) => {
+  setServer = (server: string) => {
     const { onOptionsChange, options } = this.props;
     const jsonData = {
       ...options.jsonData,
-      server: event.target.value,
+      server: server,
     };
     onOptionsChange({ ...options, jsonData });
+  };
+
+  onServerChange = (event: ChangeEvent<HTMLInputElement>) => {
+    this.setServer(event.target.value);
   };
 
   // Secure field (only sent to the backend)
@@ -56,10 +63,11 @@ export class ConfigEditor extends PureComponent<Props, State> {
           <FormField
             label="API server"
             labelWidth={6}
-            inputWidth={64}
+            inputWidth={20}
             onChange={this.onServerChange}
-            value={jsonData.server || 'api.rs2.usw2.rockset.com'}
-            placeholder="api server"
+            value={jsonData.server || ''}
+            placeholder="api server (https://rockset.com/docs/rest-api/)"
+            data-testid={apiServerDataTestId}
           />
         </div>
 
@@ -74,10 +82,11 @@ export class ConfigEditor extends PureComponent<Props, State> {
               inputWidth={64}
               onReset={this.onResetAPIKey}
               onChange={this.onAPIKeyChange}
+              data-testid={apiKeyDataTestId}
             />
           </div>
         </div>
       </div>
     );
   }
-}
+};

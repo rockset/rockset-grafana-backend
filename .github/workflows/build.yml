@@ -1,0 +1,85 @@
+# based on https://github.com/grafana/plugin-tools/blob/main/packages/create-plugin/templates/github/ci/.github/workflows/release.yml
+
+name: rockset-grafana-plugin-build
+on:
+  pull_request:
+    types: [opened, synchronize, edited, ready_for_review]
+
+jobs:
+  build:
+    concurrency:
+      group: ${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: yarn
+      
+      - name: Setup Go environment
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+
+      - name: Install dependencies
+        run: |
+          mkdir ci
+          yarn install --pure-lockfile --prefer-offline
+
+      - name: Build and test frontend
+        run: yarn build
+
+      - name: Test backend lint
+        uses: golangci/golangci-lint-action@v3
+      
+      - name: Test backend coverage
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: coverage
+
+      - name: Build backend
+        uses: magefile/mage-action@v2
+        with:
+          version: latest
+          args: buildAll
+
+      - name: Add grafana-toolkit to path
+        run: echo "./node_modules/.bin" >> $GITHUB_PATH
+
+      - name: Start grafana with plugin
+        run: |
+          docker run -d --name=grafana -e GF_DEFAULT_APP_MODE=development -e GF_LOG_LEVEL=debug -v $(pwd):/var/lib/grafana/plugins/rockset-grafana-plugin -p 3000:3000 grafana/grafana:9.3.1
+          timeout 10 bash -c 'until printf "" 2>>/dev/null >>/dev/tcp/$0/$1; do sleep 1; done' localhost 3000
+
+      - name: Run e2e tests
+        env:
+          CYPRESS_ROCKSET_APIKEY: ${{ secrets.ROCKSET_APIKEY_CI }}
+        run: yarn e2e
+
+      - name: Archive e2e test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-results-video
+          path: cypress/videos
+          retention-days: 1
+
+      - name: Move results to ci folder
+        run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
+
+      - name: Package distribution
+        run: ./node_modules/.bin/grafana-toolkit plugin:ci-package
+
+      - name: Persist build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: plugin-dist
+          path: |
+            ci
+            !ci/build_plugin
+          retention-days: 1
