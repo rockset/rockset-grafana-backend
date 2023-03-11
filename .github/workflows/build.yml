@@ -69,13 +69,16 @@ jobs:
           path: cypress/videos
           retention-days: 1
 
+      # have to add an extra folder to preserve path with actions/upload-artifact@v3
       - name: Package distribution
-        run: mv dist rockset-backend-datasource
+        run: |
+          mkdir build-artifact
+          mv dist build-artifact/rockset-backend-datasource
 
       - name: Persist build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: plugin-dist
+          name: rockset-backend-datasource
           path: |
-            rockset-backend-datasource
+            build-artifact/*
           retention-days: 1
