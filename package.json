@@ -13,7 +13,8 @@
     "sign": "npx --yes @grafana/sign-plugin@latest",
     "test": "jest --watch --onlyChanged",
     "test:ci": "jest --passWithNoTests --maxWorkers 4",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "(rm -f rockset-backend-datasource.zip; ln -s dist rockset-backend-datasource; zip -r rockset-backend-datasource.zip rockset-backend-datasource; rm rockset-backend-datasource)"
   },
   "author": "Rockset Inc",
   "license": "Apache-2.0",
