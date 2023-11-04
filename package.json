@@ -13,7 +13,8 @@
     "e2e": "yarn cypress install && yarn grafana-e2e run",
     "e2e:update": "yarn cypress install && yarn grafana-e2e run --update-screenshots",
     "server": "docker-compose up --build",
-    "sign": "npx --yes @grafana/sign-plugin"
+    "sign": "npx --yes @grafana/sign-plugin",
+    "package": "(rm rockset-backend-datasource.zip; ln -s dist rockset-backend-datasource; zip -r rockset-backend-datasource.zip rockset-backend-datasource; rm rockset-backend-datasource)"
   },
   "author": "Rockset Inc",
   "license": "Apache-2.0",
