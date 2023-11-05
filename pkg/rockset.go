@@ -281,6 +281,9 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 }
 
 func parseTime(fields map[string]interface{}, key string) (time.Time, error) {
+	if key == "" {
+		key = "_event_time"
+	}
 	ifc, ok := fields[key]
 	if !ok {
 		// TODO include a list of available columns
