@@ -152,7 +152,7 @@ docker run -d \
     -v "$(pwd)/..:/var/lib/grafana/plugins" \
     -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
     --name=grafana \
-    grafana/grafana:7.0.5
+    grafana/grafana:9.3.5
 ```
 
 Since Grafana only loads plugins on start-up, you need to restart the container whenever you add or remove a plugin.
