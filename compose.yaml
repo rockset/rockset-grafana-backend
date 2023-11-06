@@ -1,0 +1,27 @@
+version: "3"
+services:
+  grafana:
+    build:
+      context: ./
+      dockerfile: ./docker/Dockerfile
+    container_name: grafana
+    # Uncomment this if you want to change the configuration of grafana
+    # configs:
+    #  - source: grafana_config
+    #    target: /etc/grafana/grafana.ini
+    ports:
+      - 9000:3000
+    volumes:
+      - type: volume
+        source: grafana-data
+        target: /var/lib/grafana
+      - type: bind
+        source: ./
+        target: /var/lib/grafana/plugins/rockset-grafana-backend
+# Explicitly define the persistent volume for your data storage
+configs:
+  grafana_config:
+    file: ./grafana.ini
+volumes:
+  grafana-data:
+    external: true
