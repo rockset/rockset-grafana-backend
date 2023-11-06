@@ -9,37 +9,29 @@ import (
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/rockset/rockset-go-client"
+	rockseterrors "github.com/rockset/rockset-go-client/errors"
 	api "github.com/rockset/rockset-go-client/openapi"
 	opts "github.com/rockset/rockset-go-client/option"
 )
 
-// Make sure Datasource implements required interfaces. This is important to do
-// since otherwise we will only get a not implemented error response from plugin in
-// runtime. In this example datasource instance implements backend.QueryDataHandler,
-// backend.CheckHealthHandler interfaces. Plugin should not implement all these
-// interfaces- only those which are required for a particular task.
-var (
-	_ backend.QueryDataHandler      = (*Datasource)(nil)
-	_ backend.CheckHealthHandler    = (*Datasource)(nil)
-	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
-)
+func newRocksetDataSource() datasource.ServeOpts {
+	ds := &Datasource{}
 
-// NewDatasource creates a new datasource instance.
-func NewDatasource(_ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	return &Datasource{}, nil
+	return datasource.ServeOpts{
+		CheckHealthHandler: ds,
+		QueryDataHandler:   ds,
+	}
 }
 
 // Datasource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
 type Datasource struct{}
 
-// Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
-// created. As soon as datasource settings change detected by SDK old datasource instance will
-// be disposed and a new one will be created using NewSampleDatasource factory function.
+// FIXME this should be move to the InstanceSetting struct
 func (d *Datasource) Dispose() {
 	// Clean up datasource instance resources.
 }
@@ -133,7 +125,7 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 	log.DefaultLogger.Debug("query", "SQL", qm.QueryText)
 	qr, err = rs.Query(ctx, qm.QueryText, options...)
 	if err != nil {
-		var re rockset.Error
+		var re rockseterrors.Error
 		var errMessage string
 		statusCode := backend.StatusUnknown
 		if errors.As(err, &re) {
@@ -172,6 +164,10 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 
 			// only add the frame if it contains any useful data
 			if frame.Fields[1].Len() > 0 {
+				frame.SetMeta(&data.FrameMeta{
+					Type:        data.FrameTypeTimeSeriesMulti,
+					TypeVersion: data.FrameTypeVersion{0, 1},
+				})
 				response.Frames = append(response.Frames, frame)
 			}
 		}
@@ -274,7 +270,7 @@ func makeFrame(timeField, valueField, labelColumn, label string, qr api.QueryRes
 	}
 
 	// add the time dimension
-	frame.Fields = append(frame.Fields, data.NewField("time", labels, times))
+	frame.Fields = append(frame.Fields, data.NewField("time", nil, times))
 	// add values
 	if len(values) > 0 {
 		frame.Fields = append(frame.Fields, data.NewField(valueField, labels, values))

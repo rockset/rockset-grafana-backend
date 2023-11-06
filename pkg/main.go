@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
 func main() {
@@ -16,8 +16,9 @@ func main() {
 	// from Grafana to create different instances of SampleDatasource (per datasource
 	// ID). When datasource configuration changed Dispose method will be called and
 	// new datasource instance created using NewSampleDatasource factory.
-	if err := datasource.Manage("rockset-grafana-backend", NewDatasource, datasource.ManageOpts{}); err != nil {
-		log.DefaultLogger.Error(err.Error())
+	err := datasource.Serve(newRocksetDataSource())
+	if err != nil {
+		backend.Logger.Error(err.Error())
 		os.Exit(1)
 	}
 }
