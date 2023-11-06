@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+### Build
+* Fixed issues with ordering of values, we now respect the order specified in the query
+
 ## 0.2.0 
 
 ### Build

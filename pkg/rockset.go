@@ -153,9 +153,9 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 		log.DefaultLogger.Error(errMsg)
 		return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
 	}
-	log.DefaultLogger.Debug("labels", "values", labelValues)
 
-	for label := range labelValues {
+	log.DefaultLogger.Debug("labels", "values", labelValues)
+	for _, label := range labelValues {
 		for i, c := range qr.ColumnFields {
 			// skip the time field and the label column
 			if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
@@ -186,13 +186,13 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 }
 
 // extract the set of label values from the label column
-func generateLabelValues(labelColumn string, results []map[string]interface{}) (map[string]struct{}, error) {
-	labels := make(map[string]struct{})
+func generateLabelValues(labelColumn string, results []map[string]interface{}) ([]string, error) {
+	labels := make([]string, 0)
+	seen := make(map[string]struct{})
 
 	// if there isn't any label column specified, add an empty string so we can use it as a special case
 	if labelColumn == "" {
-		labels[""] = struct{}{}
-		return labels, nil
+		return []string{""}, nil
 	}
 
 	for _, m := range results {
@@ -206,7 +206,11 @@ func generateLabelValues(labelColumn string, results []map[string]interface{}) (
 			log.DefaultLogger.Error("could not cast label column value to string", "label", label)
 			continue
 		}
-		labels[l] = struct{}{}
+		_, found = seen[l]
+		if !found {
+			labels = append(labels, l)
+			seen[l] = struct{}{}
+		}
 	}
 
 	if len(labels) == 0 {
