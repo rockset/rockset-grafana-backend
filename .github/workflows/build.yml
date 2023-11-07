@@ -48,7 +48,7 @@ jobs:
           version: latest
           args: buildAll
 
-      - name: Add grafana-toolkit to path
+      - name: Add node commands to path
         run: echo "./node_modules/.bin" >> $GITHUB_PATH
 
       - name: Start grafana with plugin
@@ -69,17 +69,16 @@ jobs:
           path: cypress/videos
           retention-days: 1
 
-      - name: Move results to ci folder
-        run: ./node_modules/.bin/grafana-toolkit plugin:ci-build --finish
-
+      # have to add an extra folder to preserve path with actions/upload-artifact@v3
       - name: Package distribution
-        run: ./node_modules/.bin/grafana-toolkit plugin:ci-package
+        run: |
+          mkdir build-artifact
+          mv dist build-artifact/rockset-backend-datasource
 
       - name: Persist build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: plugin-dist
+          name: rockset-backend-datasource
           path: |
-            ci
-            !ci/build_plugin
+            build-artifact/*
           retention-days: 1
