@@ -145,7 +145,12 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 		log.DefaultLogger.Error("query error", "error", errMessage)
 		return backend.ErrDataResponse(statusCode, errMessage)
 	}
-	log.DefaultLogger.Info("query response", "elapsedTime", qr.Stats.ElapsedTimeMs, "results", len(qr.Results))
+	log.DefaultLogger.Info("query response", "elapsedTime", qr.Stats.ElapsedTimeMs, "# of results", len(qr.Results))
+
+	if len(qr.Results) == 0 {
+		errMsg := "Query returned no lines"
+		return backend.ErrDataResponse(backend.StatusValidationFailed, errMsg)
+	}
 
 	labelValues, err := generateLabelValues(qm.QueryLabelColumn, qr.Results)
 	if err != nil {
@@ -171,14 +176,19 @@ func (d *Datasource) query(ctx context.Context, rs *rockset.RockClient, query ba
 			}
 
 			// only add the frame if it contains any useful data
-			if frame.Fields[1].Len() > 0 {
+			if len(frame.Fields) > 1 && frame.Fields[1].Len() > 0 {
 				response.Frames = append(response.Frames, frame)
 			}
 		}
 	}
 
 	if len(response.Frames) == 0 {
-		errMsg := fmt.Sprintf("no usable columns found in query response: %s", err.Error())
+		var errMsg string
+		if err == nil {
+			errMsg = "no usable columns found in query response"
+		} else {
+			errMsg = fmt.Sprintf("no usable columns found in query response: %s", err.Error())
+		}
 		return backend.ErrDataResponse(backend.StatusValidationFailed, errMsg)
 	}
 
