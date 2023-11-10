@@ -65,8 +65,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: e2e-test-results-video
-          path: cypress/videos
+          name: e2e-test-results
+          path: |
+            cypress/videos
+            cypress/report.json
           retention-days: 1
 
       # have to add an extra folder to preserve path with actions/upload-artifact@v3
