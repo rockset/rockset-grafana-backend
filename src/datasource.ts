@@ -1,20 +1,14 @@
-import {
-  DataSourceInstanceSettings,
-  ScopedVars
-} from '@grafana/data';
-import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime';
-import { RocksetQuery, RocksetDataSourceOptions } from './types';
+import { DataSourceInstanceSettings, CoreApp } from '@grafana/data';
+import { DataSourceWithBackend } from '@grafana/runtime';
 
-export class DataSource extends DataSourceWithBackend<RocksetQuery, RocksetDataSourceOptions> {
-  constructor(instanceSettings: DataSourceInstanceSettings<RocksetDataSourceOptions>) {
+import { MyQuery, MyDataSourceOptions, DEFAULT_QUERY } from './types';
+
+export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions> {
+  constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
     super(instanceSettings);
   }
 
-  applyTemplateVariables(query: RocksetQuery, scopedVars: ScopedVars): Record<string, any> {
-    const templateSrv = getTemplateSrv();
-    return {
-      ...query,
-      queryText: query.queryText ? templateSrv.replace(query.queryText, scopedVars) : '',
-    };
+  getDefaultQuery(_: CoreApp): Partial<MyQuery> {
+    return DEFAULT_QUERY;
   }
 }

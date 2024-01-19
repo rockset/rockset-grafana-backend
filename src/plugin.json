@@ -1,44 +1,28 @@
 {
-  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
   "name": "Rockset",
-  "id": "rockset-backend-datasource",
+  "id": "rockset-rockset-datasource",
   "metrics": true,
   "backend": true,
-  "alerting": true,
-  "executable": "gpx_rockset-grafana",
+  "executable": "gpx_rockset",
   "info": {
-    "description": "Plugin for Rockset Collections as datasources",
+    "description": "Rockset backend datasource",
     "author": {
-      "name": "Rockset Inc",
-      "url": "https://rockset.com"
+      "name": "Rockset"
     },
-    "keywords": [
-      "datasource",
-      "SQL",
-      "JSON",
-      "Rockset"
-    ],
+    "keywords": ["datasource"],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [
-      {
-        "name": "Website",
-        "url": "https://github.com/rockset/rockset-grafana-backend"
-      },
-      {
-        "name": "License",
-        "url": "https://github.com/rockset/rockset-grafana-backend/blob/master/LICENSE"
-      }
-    ],
+    "links": [],
     "screenshots": [],
-    "version": "0.2.1",
-    "updated": "2023-11-05"
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
   },
   "dependencies": {
-    "grafanaDependency": "^9.2.5",
+    "grafanaDependency": ">=10.0.3",
     "plugins": []
   }
 }
