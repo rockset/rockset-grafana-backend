@@ -5,18 +5,36 @@
   "id": "rockset-rockset-datasource",
   "metrics": true,
   "backend": true,
+  "alerting": true,
+  "annotations": true,
+  "logs": true,
   "executable": "gpx_rockset",
   "info": {
-    "description": "Rockset backend datasource",
+    "description": "Plugin for Rockset Collections as datasources",
     "author": {
-      "name": "Rockset"
+      "name": "Rockset Inc",
+      "url": "https://rockset.com"
     },
-    "keywords": ["datasource"],
+    "keywords": [
+      "datasource",
+      "SQL",
+      "JSON",
+      "Rockset"
+    ],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"
     },
-    "links": [],
+    "links": [
+      {
+        "name": "Website",
+        "url": "https://github.com/rockset/rockset-grafana-backend"
+      },
+      {
+        "name": "License",
+        "url": "https://github.com/rockset/rockset-grafana-backend/blob/master/LICENSE"
+      }
+    ],
     "screenshots": [],
     "version": "%VERSION%",
     "updated": "%TODAY%"

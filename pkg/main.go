@@ -5,7 +5,8 @@ import (
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/rockset/rockset/pkg/plugin"
+
+	"github.com/rockset/rockset-grafana-backend/pkg/plugin"
 )
 
 func main() {

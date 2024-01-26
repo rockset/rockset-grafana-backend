@@ -6,7 +6,7 @@ import {RocksetDataSourceOptions, RocksetQuery} from '../types';
 
 type Props = QueryEditorProps<DataSource, RocksetQuery, RocksetDataSourceOptions>;
 
-export function QueryEditor({query, onChange, onRunQuery}: Props) {
+export function AnnotationEditor({query, onChange, onRunQuery}: Props) {
     const onQueryParamStartChange = (event: ChangeEvent<HTMLInputElement>) => {
         onChange({...query, queryParamStart: event.target.value});
         onRunQuery();
@@ -22,18 +22,27 @@ export function QueryEditor({query, onChange, onRunQuery}: Props) {
         onRunQuery();
     };
 
-    const onQueryParamLabelColumnChange = (event: ChangeEvent<HTMLInputElement>) => {
-        onChange({...query, queryLabelColumn: event.target.value});
-        onRunQuery();
-    };
-
     const onQueryTextChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         onChange({...query, queryText: event.target.value});
         onRunQuery();
     };
 
-    const {queryText, queryParamStart, queryParamStop, queryTimeField, queryLabelColumn} = query;
+    const {queryText, queryParamStart, queryParamStop, queryTimeField} = query;
     const labelWidth = 16, fieldWidth = 20;
+
+    const defaultQuery = `SELECT
+    e._event_time,
+    CASE
+        WHEN e.message IS NOT NULL THEN e.message
+        ELSE 'no text found'
+    END AS text,
+    FORMAT('type={},kind={}', e.type, e.kind) AS tags
+FROM
+    commons._events e
+ORDER BY
+    time DESC
+LIMIT
+    500`
 
     return (
         <>
@@ -71,17 +80,6 @@ export function QueryEditor({query, onChange, onRunQuery}: Props) {
                         width={fieldWidth}
                     />
                 </InlineField>
-                <InlineField
-                    label="Label Column"
-                    labelWidth={labelWidth}
-                    tooltip="Name of the column containing the label to display"
-                >
-                    <Input
-                        onChange={onQueryParamLabelColumnChange}
-                        value={queryLabelColumn || ''}
-                        width={fieldWidth}
-                    />
-                </InlineField>
             </div>
             <div>
                 <InlineField
@@ -91,8 +89,8 @@ export function QueryEditor({query, onChange, onRunQuery}: Props) {
                     tooltip="Rockset SQL query to get the data. Must contain a WHERE clause which limits the query based on the startTime and stopTime."
                 >
                     <TextArea
-                        style={{height: '600px'}}
-                        value={queryText || ''}
+                        style={{height: '300px'}}
+                        value={queryText || defaultQuery}
                         onChange={onQueryTextChange}
                     >
                     </TextArea>

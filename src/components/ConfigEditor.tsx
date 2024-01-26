@@ -1,16 +1,24 @@
 import React, { ChangeEvent } from 'react';
 import { InlineField, Input, SecretInput } from '@grafana/ui';
 import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
-import { MyDataSourceOptions, MySecureJsonData } from '../types';
+import { RocksetDataSourceOptions, RocksetSecureJsonData } from '../types';
 
-interface Props extends DataSourcePluginOptionsEditorProps<MyDataSourceOptions> {}
+interface Props extends DataSourcePluginOptionsEditorProps<RocksetDataSourceOptions> {}
 
 export function ConfigEditor(props: Props) {
   const { onOptionsChange, options } = props;
-  const onPathChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const onServerChange = (event: ChangeEvent<HTMLInputElement>) => {
     const jsonData = {
       ...options.jsonData,
-      path: event.target.value,
+      server: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  };
+
+  const onVIChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const jsonData = {
+      ...options.jsonData,
+      vi: event.target.value,
     };
     onOptionsChange({ ...options, jsonData });
   };
@@ -40,28 +48,43 @@ export function ConfigEditor(props: Props) {
   };
 
   const { jsonData, secureJsonFields } = options;
-  const secureJsonData = (options.secureJsonData || {}) as MySecureJsonData;
+  const secureJsonData = (options.secureJsonData || {}) as RocksetSecureJsonData;
+  const labelWidth = 15, fieldWidth = 40
 
   return (
-    <div className="gf-form-group">
-      <InlineField label="Path" labelWidth={12}>
-        <Input
-          onChange={onPathChange}
-          value={jsonData.path || ''}
-          placeholder="json field returned to frontend"
-          width={40}
-        />
-      </InlineField>
-      <InlineField label="API Key" labelWidth={12}>
-        <SecretInput
-          isConfigured={(secureJsonFields && secureJsonFields.apiKey) as boolean}
-          value={secureJsonData.apiKey || ''}
-          placeholder="secure json field (backend only)"
-          width={40}
-          onReset={onResetAPIKey}
-          onChange={onAPIKeyChange}
-        />
-      </InlineField>
-    </div>
+      <div>
+        <div className="gf-form-group">
+          <InlineField label="API Server" labelWidth={labelWidth}
+                       tooltip={"for a full list of API servers, see https://docs.rockset.com/documentation/reference/rest-api"}>
+            <Input
+                onChange={onServerChange}
+                value={jsonData.server || 'api.usw2a1.rockset.com'}
+                placeholder="Rockset API server"
+                width={fieldWidth}
+            />
+          </InlineField>
+          <InlineField label="API Key" labelWidth={labelWidth}>
+            <SecretInput
+                isConfigured={(secureJsonFields && secureJsonFields.apiKey) as boolean}
+                value={secureJsonData.apiKey || ''}
+                placeholder="Rockset API key"
+                width={fieldWidth}
+                onReset={onResetAPIKey}
+                onChange={onAPIKeyChange}
+            />
+          </InlineField>
+        </div>
+        <div className="gf-form-group">
+          <InlineField label="Virtual Instance ID" labelWidth={30}
+                       tooltip={"use a specific virtual instance to execute the queries"}>
+            <Input
+                onChange={onVIChange}
+                value={jsonData.vi || ''}
+                placeholder="Virtual Instance ID"
+                width={60}
+            />
+          </InlineField>
+        </div>
+      </div>
   );
 }
