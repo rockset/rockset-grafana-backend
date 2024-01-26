@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -112,6 +113,12 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 
 // Query executes a single query and returns the result
 func Query(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) backend.DataResponse {
+	defer func() {
+		if r := recover(); r != nil {
+			log.DefaultLogger.Error("recovered from panic", "error", r)
+			log.DefaultLogger.Error(string(debug.Stack()))
+		}
+	}()
 	log.DefaultLogger.Info("query", "refId", query.RefID, "JSON", string(query.JSON), "type", query.QueryType)
 
 	var response backend.DataResponse
@@ -205,11 +212,9 @@ func Query(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) 
 				return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
 			}
 
-			// only add the fields if they contain any useful data
-			if len(fields) > 1 && frame.Fields[1].Len() > 0 {
-				frame.Fields = append(frame.Fields, fields...)
-				response.Frames = append(response.Frames, frame)
-			}
+			log.DefaultLogger.Info("adding fields", "fields", len(fields))
+			frame.Fields = append(frame.Fields, fields...)
+			response.Frames = append(response.Frames, frame)
 		}
 	}
 
