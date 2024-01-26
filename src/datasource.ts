@@ -1,4 +1,4 @@
-import {CoreApp, DataSourceInstanceSettings, ScopedVars} from '@grafana/data';
+import {CoreApp, DataSourceInstanceSettings, MetricFindValue, ScopedVars, VariableSupportType} from '@grafana/data';
 import {DataSourceWithBackend, getTemplateSrv} from '@grafana/runtime';
 import {AnnotationEditor} from './components/AnnotationEditor';
 
@@ -12,6 +12,11 @@ export class DataSource extends DataSourceWithBackend<RocksetQuery, RocksetDataS
 
         this.annotations = {
             QueryEditor: AnnotationEditor,
+            prepareQuery: (anno) => {
+                return {
+                    ...(anno.target)
+                };
+            }
         }
     }
 
