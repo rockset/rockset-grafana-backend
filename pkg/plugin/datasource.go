@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,16 +19,6 @@ import (
 	"github.com/rockset/rockset-go-client/openapi"
 	"github.com/rockset/rockset-go-client/option"
 )
-
-type QueryModel struct {
-	IntervalMs       uint64 `json:"intervalMs"`
-	MaxDataPoints    int32  `json:"maxDataPoints"`
-	QueryText        string `json:"queryText"`
-	QueryParamStart  string `json:"queryParamStart"`
-	QueryParamStop   string `json:"queryParamStop"`
-	QueryTimeField   string `json:"queryTimeField"`
-	QueryLabelColumn string `json:"queryLabelColumn"`
-}
 
 type Annotation struct {
 	Datasource struct {
@@ -102,7 +93,17 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	// loop over queries and execute them individually.
 	log.DefaultLogger.Info("got queries", "count", len(req.Queries))
 	for _, q := range req.Queries {
-		res := Query(ctx, rs, vi, q)
+		log.DefaultLogger.Info("query", "refId", q.RefID, "JSON", string(q.JSON))
+
+		var res backend.DataResponse
+		switch q.RefID {
+		case "Anno":
+			res = AnnotationsQuery(ctx, rs, vi, q)
+		case "variable-query":
+			res = VariablesQuery(ctx, rs, vi, q)
+		default:
+			res = MetricsQuery(ctx, rs, vi, q)
+		}
 
 		// save the response in a hashmap based on with RefID as identifier
 		response.Responses[q.RefID] = res
@@ -111,78 +112,116 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	return response, nil
 }
 
-// Query executes a single query and returns the result
-func Query(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) backend.DataResponse {
+// AnnotationsQuery handles annotation queries from grafana
+func AnnotationsQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) (response backend.DataResponse) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.DefaultLogger.Error("recovered from panic", "error", r)
+			log.DefaultLogger.Error(string(debug.Stack()))
+
+			response.Error = fmt.Errorf("internal plugin error, please contact Rockset support")
+			response.Status = backend.StatusInternal
+		}
+	}()
+
+	var qm AnnotationsQueryModel
+	err := json.Unmarshal(query.JSON, &qm)
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to unmarshal query: %v", err.Error()))
+	}
+
+	options := buildQueryOptions(qm, query.TimeRange.From, query.TimeRange.To, vi)
+	log.DefaultLogger.Info("executing annotations query", "SQL", qm.QueryText)
+
+	qr, err := rs.Query(ctx, qm.QueryText, options...)
+	if err != nil {
+		return errorToResponse(err)
+	}
+	logQueryResponse(qr)
+
+	if len(qr.ColumnFields) == 0 {
+		return backend.ErrDataResponse(backend.StatusValidationFailed,
+			"Query must not use 'SELECT *', instead explicitly specify the columns to return")
+	}
+
+	frame := makeFrame("variables", qm.QueryText, qr)
+	field := extractAnnotationsField(qr.ColumnFields, qr.Results)
+	frame.Fields = append(frame.Fields, field...)
+	response.Frames = append(response.Frames, frame)
+
+	return response
+}
+
+// VariablesQuery returns list of values for template variables
+func VariablesQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) (response backend.DataResponse) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.DefaultLogger.Error("recovered from panic", "error", r)
+			log.DefaultLogger.Error(string(debug.Stack()))
+
+			response.Error = fmt.Errorf("internal plugin error, please contact Rockset support")
+			response.Status = backend.StatusInternal
+		}
+	}()
+
+	var qm VariablesQueryModel
+	err := json.Unmarshal(query.JSON, &qm)
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to unmarshal query: %v", err.Error()))
+	}
+
+	options := buildQueryOptions(qm, query.TimeRange.From, query.TimeRange.To, vi)
+	log.DefaultLogger.Info("executing variables query", "SQL", qm.QueryText)
+
+	qr, err := rs.Query(ctx, qm.QueryText, options...)
+	if err != nil {
+		return errorToResponse(err)
+	}
+	logQueryResponse(qr)
+
+	frame := makeFrame("variables", qm.QueryText, qr)
+	field, err := extractVariableField(qr.Results)
+	if err != nil {
+		return errorToResponse(err)
+	}
+
+	frame.Fields = append(frame.Fields, field...)
+	response.Frames = append(response.Frames, frame)
+
+	return response
+}
+
+// MetricsQuery executes a single query and returns the result
+func MetricsQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) backend.DataResponse {
 	defer func() {
 		if r := recover(); r != nil {
 			log.DefaultLogger.Error("recovered from panic", "error", r)
 			log.DefaultLogger.Error(string(debug.Stack()))
 		}
 	}()
-	log.DefaultLogger.Info("query", "refId", query.RefID, "JSON", string(query.JSON), "type", query.QueryType)
 
 	var response backend.DataResponse
 
-	// Unmarshal the request JSON into our QueryModel.
-	var qm QueryModel
+	// Unmarshal the request JSON into our MetricsQueryModel.
+	var qm MetricsQueryModel
 	err := json.Unmarshal(query.JSON, &qm)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to unmarshal query: %v", err.Error()))
 	}
 
-	// set defaults and trim ":" from the start/stop
-	if qm.QueryParamStart == "" {
-		qm.QueryParamStart = "startTime"
-	}
-	qm.QueryParamStart = strings.TrimPrefix(qm.QueryParamStart, ":")
-	if qm.QueryParamStop == "" {
-		qm.QueryParamStop = "stopTime"
-	}
-	qm.QueryParamStop = strings.TrimPrefix(qm.QueryParamStop, ":")
-	if qm.QueryTimeField == "" {
-		qm.QueryTimeField = "_event_time"
-		log.DefaultLogger.Info("setting default query time field", "value", qm.QueryTimeField)
-	}
-
-	log.DefaultLogger.Info("query",
-		"interval", qm.IntervalMs,
-		"max data points", qm.MaxDataPoints,
-		"from", query.TimeRange.From,
-		"to", query.TimeRange.To,
-		"duration", query.TimeRange.To.Sub(query.TimeRange.From).String())
-
-	options := []option.QueryOption{
-		option.WithParameter(qm.QueryParamStart, "timestamp", query.TimeRange.From.UTC().Format(time.RFC3339)),
-		option.WithParameter(qm.QueryParamStop, "timestamp", query.TimeRange.To.UTC().Format(time.RFC3339)),
-		option.WithDefaultRowLimit(qm.MaxDataPoints),
-	}
-	if vi != "" {
-		options = append(options, option.WithVirtualInstance(vi))
-	}
-	log.DefaultLogger.Info("query", "SQL", qm.QueryText, "vi", vi)
+	options := buildQueryOptions(qm, query.TimeRange.From, query.TimeRange.To, vi)
+	log.DefaultLogger.Info("executing metrics query", "SQL", qm.QueryText)
 
 	qr, err := rs.Query(ctx, qm.QueryText, options...)
 	if err != nil {
-		var re rockerr.Error
-		var errMessage string
-		statusCode := backend.StatusUnknown
-		if errors.As(err, &re) {
-			statusCode = backend.Status(re.StatusCode)
-			errMessage = fmt.Sprintf("There was a problem executing your query: Error ID [%s] - Query ID [%s]\nLine: %d Column: %d\n%s",
-				re.GetErrorId(), re.GetQueryId(), re.GetLine(), re.GetColumn(), re.Error())
-		} else {
-			errMessage = fmt.Sprintf("There was a problem executing your query:\n%s", err.Error())
-		}
-
-		log.DefaultLogger.Error("query error", "error", errMessage)
-		return backend.ErrDataResponse(statusCode, errMessage)
+		return errorToResponse(err)
 	}
-	log.DefaultLogger.Info("query response", "elapsedTime", qr.Stats.ElapsedTimeMs, "# of results", len(qr.Results))
+	logQueryResponse(qr)
 
 	if len(qr.Results) == 0 {
 		return backend.ErrDataResponse(backend.StatusValidationFailed, "Query returned no rows")
 	}
-	// we don't allow SELECT *, as it doesn't set the ColumnFields
+	// we don't allow SELECT *, as it doesn't set the ColumnFields, but we could calculate that here
 	if len(qr.ColumnFields) == 0 {
 		return backend.ErrDataResponse(backend.StatusValidationFailed,
 			"Query must not use 'SELECT *', instead explicitly specify the columns to return")
@@ -196,9 +235,8 @@ func Query(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) 
 	}
 	log.DefaultLogger.Debug("extracted labels", "labels", labels)
 
-	frame := makeFrame(qm.QueryText, qr)
-
 	for _, label := range labels {
+		frame := makeFrame("metrics", qm.QueryText, qr)
 		for i, c := range qr.ColumnFields {
 			// skip the time field and the label column
 			if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
@@ -206,23 +244,104 @@ func Query(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) 
 			}
 			log.DefaultLogger.Debug("column", "i", i, "name", c.Name, "label", label)
 
-			fields, err := extractFields(qm.QueryTimeField, c.Name, qm.QueryLabelColumn, label, qr.Results)
+			fields, err := extractMetricsFields(qm.QueryTimeField, c.Name, qm.QueryLabelColumn, label, qr.Results)
 			if err != nil {
 				errMsg := fmt.Sprintf("failed to create frame for %s: %v", c.Name, err)
 				return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
 			}
 
-			log.DefaultLogger.Info("adding fields", "fields", len(fields))
+			log.DefaultLogger.Info("adding frame", "fields", len(fields), "name", c.Name, "i", i)
+			var length int
+			for j, f := range fields {
+				log.DefaultLogger.Info("field", "prev", length, "length", f.Len(), "name", f.Name, "j", j)
+				if length > 0 && length != f.Len() {
+					log.DefaultLogger.Error("inconsistent field length", "field", f.Name, "length", f.Len(), "prev", length)
+					return backend.ErrDataResponse(backend.StatusUnknown, fmt.Sprintf(
+						"field %s has inconsistent length: %d != %d", f.Name, length, f.Len()))
+				}
+				length = f.Len()
+			}
+			// TODO we might want to use frame.RowLen() here to see if we're about to add a field which won't work
 			frame.Fields = append(frame.Fields, fields...)
 			response.Frames = append(response.Frames, frame)
 		}
+		response.Frames = append(response.Frames, frame)
 	}
 
-	response.Frames = append(response.Frames, frame)
 	return response
 }
 
-func makeFrame(query string, qr openapi.QueryResponse) *data.Frame {
+func buildQueryOptions[T queryModel](qm T, from, to time.Time, vi string) []option.QueryOption {
+	var options []option.QueryOption
+	var opts []any
+
+	log.DefaultLogger.Info("query options",
+		"interval", qm.GetIntervalMs(),
+		"max data points", qm.GetMaxDataPoints(),
+		"from", from,
+		"to", to,
+		"duration", to.Sub(from).String())
+
+	if qm.GetIntervalMs() > 0 {
+		opts = append(opts, "interval", qm.GetIntervalMs())
+		options = append(options, option.WithParameter("interval", "int", strconv.FormatUint(qm.GetIntervalMs(), 10)))
+	}
+
+	// set defaults and trim ":" from the start/stop
+	start := strings.TrimPrefix(qm.GetQueryParamStart(), ":")
+	if start != "" {
+		opts = append(opts, start, from.UTC().Format(time.RFC3339))
+		options = append(options, option.WithParameter(start, "timestamp", from.UTC().Format(time.RFC3339)))
+	}
+
+	stop := strings.TrimPrefix(qm.GetQueryParamStop(), ":")
+	if stop != "" {
+		opts = append(opts, stop, to.UTC().Format(time.RFC3339))
+		options = append(options, option.WithParameter(stop, "timestamp", to.UTC().Format(time.RFC3339)))
+	}
+
+	if qm.GetMaxDataPoints() > 0 {
+		opts = append(opts, "max data points", qm.GetMaxDataPoints())
+		options = append(options, option.WithDefaultRowLimit(qm.GetMaxDataPoints()))
+	}
+
+	if vi != "" {
+		opts = append(opts, "vi", vi)
+		options = append(options, option.WithVirtualInstance(vi))
+	}
+
+	log.DefaultLogger.Info("query options", opts...)
+
+	return options
+}
+
+func errorToResponse(err error) backend.DataResponse {
+	var re rockerr.Error
+	var errMessage string
+	statusCode := backend.StatusUnknown
+	if errors.As(err, &re) {
+		statusCode = backend.Status(re.StatusCode)
+		errMessage = fmt.Sprintf("There was a problem executing your query: Error ID [%s] - Query ID [%s]\nLine: %d Column: %d\n%s",
+			re.GetErrorId(), re.GetQueryId(), re.GetLine(), re.GetColumn(), re.Error())
+	} else {
+		errMessage = fmt.Sprintf("There was a problem executing your query:\n%s", err.Error())
+	}
+
+	log.DefaultLogger.Error("query error", "error", errMessage)
+	return backend.ErrDataResponse(statusCode, errMessage)
+}
+
+func logQueryResponse(qr openapi.QueryResponse) {
+	log.DefaultLogger.Info("query response",
+		"elapsedTime", qr.Stats.ElapsedTimeMs,
+		"docs", qr.GetResultsTotalDocCount(),
+		"errors", qr.GetQueryErrors(),
+		"warnings", strings.Join(qr.GetWarnings(), ", "),
+		"queryID", qr.GetQueryId(),
+	)
+}
+
+func makeFrame(name, query string, qr openapi.QueryResponse) *data.Frame {
 	meta := data.FrameMeta{
 		Type:                data.FrameTypeTimeSeriesWide,
 		TypeVersion:         data.FrameTypeVersion{0, 1},
@@ -243,6 +362,13 @@ func makeFrame(query string, qr openapi.QueryResponse) *data.Frame {
 		},
 	}
 
+	page := qr.GetPagination()
+	if page.GetNextCursor() != "" {
+		meta.Notices = append(meta.Notices, data.Notice{
+			Severity: data.NoticeSeverityWarning,
+			Text:     "pagination needed",
+		})
+	}
 	if qr.HasQueryErrors() {
 		fields := make([]string, len(qr.GetQueryErrors()))
 		for i, e := range qr.GetQueryErrors() {
@@ -260,15 +386,94 @@ func makeFrame(query string, qr openapi.QueryResponse) *data.Frame {
 		})
 	}
 
-	frame := data.NewFrame("response")
+	frame := data.NewFrame(name)
 	frame.SetMeta(&meta)
 
 	return frame
 }
 
+func extractVariableField(qr []map[string]interface{}) ([]*data.Field, error) {
+	if len(qr) == 0 {
+		return nil, fmt.Errorf("got empty query response")
+	}
+	if len(qr[0]) != 1 {
+		return nil, fmt.Errorf("expected exactly one column, got %d", len(qr))
+	}
+	var variables []string
+	seen := make(map[string]struct{})
+
+	for _, row := range qr {
+		for _, v := range row {
+			if s, ok := v.(string); ok {
+				if _, found := seen[s]; !found {
+					variables = append(variables, s)
+					seen[s] = struct{}{}
+				}
+			}
+		}
+	}
+	field := data.NewField("variables", nil, variables)
+
+	return []*data.Field{field}, nil
+}
+
+func extractAnnotationsField(columns []openapi.QueryFieldType, qr []map[string]interface{}) []*data.Field {
+	var fields []*data.Field
+	for _, c := range columns {
+		v := firstValue(c.Name, qr)
+
+		switch v.(type) {
+		case string:
+			fields = append(fields, data.NewField(c.Name, nil, extractColumn[string](c.Name, qr)))
+		case float64:
+			fields = append(fields, data.NewField(c.Name, nil, extractColumn[float64](c.Name, qr)))
+		case bool:
+			fields = append(fields, data.NewField(c.Name, nil, extractColumn[bool](c.Name, qr)))
+		default:
+			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", v), "value", v)
+		}
+	}
+
+	return fields
+}
+
+func firstValue(name string, qr []map[string]interface{}) interface{} {
+	for _, row := range qr {
+		if v, found := row[name]; found && v != nil {
+			return v
+		}
+	}
+
+	return nil
+}
+
+func extractColumn[T any](name string, qr []map[string]interface{}) []*T {
+	var column []*T
+	for i, row := range qr {
+		value, found := row[name]
+		if !found {
+			log.DefaultLogger.Error("column not found", "column", name, "i", i)
+			column = append(column, nil)
+			continue
+		}
+
+		switch value.(type) {
+		case T:
+			v := value.(T)
+			column = append(column, &v)
+		default:
+			log.DefaultLogger.Error("column is not of type",
+				"column", name, "i", i, "type", fmt.Sprintf("%T", value), "value", value)
+			column = append(column, nil)
+		}
+	}
+
+	return column
+}
+
 // extracts fields in wide format
 // https://grafana.com/developers/plugin-tools/introduction/data-frames#wide-format
-func extractFields(timeField, valueField, labelColumn, label string, qr []map[string]interface{}) ([]*data.Field, error) {
+func extractMetricsFields(timeField, valueField, labelColumn, label string, qr []map[string]interface{}) ([]*data.Field, error) {
 	var times []time.Time
 	var floatValues []float64
 	var boolValues []bool
@@ -281,7 +486,7 @@ func extractFields(timeField, valueField, labelColumn, label string, qr []map[st
 	}
 
 	// iterate over the rows
-	for _, row := range qr {
+	for i, row := range qr {
 		if labelColumn != "" {
 			if l, found := row[labelColumn]; found && l != label {
 				// skip rows which doesn't match the label
@@ -305,9 +510,12 @@ func extractFields(timeField, valueField, labelColumn, label string, qr []map[st
 		case float64:
 			floatValues = append(floatValues, v.(float64))
 		default:
-			if v == "" {
+			if v == "null" {
+				log.DefaultLogger.Debug("skipping row due to empty value", "value", valueField)
+				continue
 			}
-			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", v), "value", v, "column", valueField)
+			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", v),
+				"value", v, "column", valueField, "i", i)
 			continue
 		}
 
@@ -347,7 +555,7 @@ func extractLabelValues(labelColumn string, results []map[string]interface{}) ([
 	for _, m := range results {
 		label, found := m[labelColumn]
 		if !found {
-			log.DefaultLogger.Error("could not lookup label", "column", labelColumn)
+			log.DefaultLogger.Debug("could not lookup label", "column", labelColumn)
 			continue
 		}
 		l, ok := label.(string)
@@ -363,7 +571,9 @@ func extractLabelValues(labelColumn string, results []map[string]interface{}) ([
 	}
 
 	if len(labels) == 0 {
-		return nil, fmt.Errorf("label column '%s' doesn't contain any string values", labelColumn)
+		log.DefaultLogger.Warn("label column doesn't contain any string values", "column", labelColumn)
+		return []string{""}, nil
+		// return nil, fmt.Errorf("label column '%s' doesn't contain any string values", labelColumn)
 	}
 
 	return labels, nil

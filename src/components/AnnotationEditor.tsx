@@ -39,10 +39,11 @@ export function AnnotationEditor({query, onChange, onRunQuery}: Props) {
     FORMAT('type={},kind={}', e.type, e.kind) AS tags
 FROM
     commons._events e
+WHERE
+  e._event_time > :startTime AND
+  e._event_time < :stopTime
 ORDER BY
-    time DESC
-LIMIT
-    500`
+    time DESC`
 
     return (
         <>

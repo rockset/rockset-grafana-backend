@@ -72,11 +72,13 @@ func TestQuery(t *testing.T) {
 	rs := &fake.FakeQueryer{}
 	rs.QueryReturns(qr, nil)
 
-	qm := plugin.QueryModel{
-		QueryTimeField: "time",
+	qm := plugin.MetricsQueryModel{
+		QueryModel: plugin.QueryModel{
+			QueryTimeField: "time",
+		},
 	}
 
-	resp := plugin.Query(
+	resp := plugin.MetricsQuery(
 		context.Background(),
 		rs,
 		"",

@@ -12,12 +12,29 @@ export class DataSource extends DataSourceWithBackend<RocksetQuery, RocksetDataS
 
         this.annotations = {
             QueryEditor: AnnotationEditor,
-            prepareQuery: (anno) => {
-                return {
-                    ...(anno.target)
-                };
-            }
+            prepareQuery: (anno) => anno.target
         }
+
+        this.variables = {
+            // TODO set VariableQueryEditor as the editor
+            getType: () => VariableSupportType.Datasource,
+            getDefaultQuery: () => ({
+                queryTimeField: "_event_time",
+                queryLabelColumn: "label",
+                queryText: `SELECT
+     'test' AS label,
+     CURRENT_TIMESTAMP() AS _event_time
+ `.trim()
+            })
+        }
+    }
+
+    async metricFindQuery(query: any, options?: any): Promise<MetricFindValue[]> {
+        console.log({ query, options });
+        // TODO;
+        return [{
+            text: "__TEST__"
+        }]
     }
 
     applyTemplateVariables(query: RocksetQuery, scopedVars: ScopedVars): Record<string, any> {
