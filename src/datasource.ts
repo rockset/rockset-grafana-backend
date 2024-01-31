@@ -24,7 +24,7 @@ export class DataSource extends DataSourceWithBackend<RocksetQuery, RocksetDataS
         }
 
         this.variables = {
-            editor: VariableQueryEditor,
+            editor: VariableQueryEditor as any,
             getType: () => VariableSupportType.Custom,
             query: (q: DataQueryRequest<RocksetQuery>) => this.query({
                 ...q,
