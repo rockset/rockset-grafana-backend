@@ -58,7 +58,7 @@ export function ConfigEditor(props: Props) {
                        tooltip={"for a full list of API servers, see https://docs.rockset.com/documentation/reference/rest-api"}>
             <Input
                 onChange={onServerChange}
-                value={jsonData.server || 'api.usw2a1.rockset.com'}
+                value={jsonData.server || ''}
                 placeholder="Rockset API server"
                 width={fieldWidth}
             />
