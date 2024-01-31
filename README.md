@@ -4,6 +4,19 @@ The Rockset plugin lets you write queries against your Rockset collections and v
 
 Detailed setup instructions can be found in the [Rockset documentation](https://docs.rockset.com/documentation/docs/grafana).
 
+## Installation
+
+For a detailed guide on how to install and configure the plugin,
+see the [Grafana plugin installation documentation](https://grafana.com/docs/grafana/latest/administration/plugin-management/).
+
+The quckstart is to use the `grafana cli` to install the plugin from the Rockset public S3 bucket:
+```
+grafana cli \
+  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+  plugins install rockset-backend-datasource
+```
+
+⚠️ This requires setting the `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` environment variable to `rockset-backend-datasource`.
 
 ## Query Types
 
@@ -38,6 +51,17 @@ ORDER BY
 ```
 
 ![events](src/img/events.png)
+
+Instead of a fixed interval, it is possible to use `:interval` which is SQL query parameter that the plugin injects into the request,
+and is based on the Grafana variable `$__interval`, which is set to the time range divided by the max number of datapoints.
+
+![events](src/img/query-options.png)
+
+The `:interval` is in milliseconds, so the bucket should use `MILLISECONDS()`, e.g.
+```SQL
+SELECT 
+    TIME_BUCKET(MILLISECONDS(:interval), _events._event_time) AS _event_time,
+```
 
 ### Labeling Data
 
@@ -137,34 +161,9 @@ You can include an `ALL` option using the SQL wildcard character `%`
 
 ![all option](src/img/all-option.png)
 
-# Installation
+# Plugin Development
 
-Install the plugin using the grafana-cli. Note that the plugin require Grafana 10!
-
-```bash
-grafana-cli \
-  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
-  plugins install rockset-backend-datasource
-```
-
-## Test-driving the plugin
-
-```bash
-docker run -d \
-    -p 3000:3000 \
-    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
-    --name=grafana \
-    grafana/grafana:10.0.3
-docker exec grafana \
-    grafana cli \
-    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
-    plugins install rockset-backend-datasource
-docker restart grafana
-```
-
-## Plugin Development
-
-### Backend
+## Backend
 
 1. Update [Grafana plugin SDK for Go](https://grafana.com/developers/plugin-tools/introduction/grafana-plugin-sdk-for-go) dependency to the latest minor version:
 
@@ -185,7 +184,7 @@ docker restart grafana
    mage -l
    ```
 
-### Frontend
+## Frontend
 
 1. Install dependencies
 
@@ -240,3 +239,17 @@ docker restart grafana
 
    npm run lint:fix
    ```
+## Test-driving the plugin
+
+```bash
+docker run -d \
+    -p 3000:3000 \
+    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
+    --name=grafana \
+    grafana/grafana:10.0.3
+docker exec grafana \
+    grafana cli \
+    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+    plugins install rockset-backend-datasource
+docker restart grafana
+```

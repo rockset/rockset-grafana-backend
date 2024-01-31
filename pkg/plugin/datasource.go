@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -270,10 +271,10 @@ func buildQueryOptions[T queryModel](qm T, from, to time.Time, vi string) []opti
 		"to", to,
 		"duration", to.Sub(from).String())
 
-	// if qm.GetIntervalMs() > 0 {
-	// 	opts = append(opts, "interval", qm.GetIntervalMs())
-	// 	options = append(options, option.WithParameter(":interval", "int", strconv.FormatUint(qm.GetIntervalMs(), 10)))
-	// }
+	if qm.GetIntervalMs() > 0 {
+		opts = append(opts, ":interval", qm.GetIntervalMs())
+		options = append(options, option.WithParameter("interval", "int", strconv.FormatUint(qm.GetIntervalMs(), 10)))
+	}
 
 	// set defaults and trim ":" from the start/stop
 	start := strings.TrimPrefix(qm.GetQueryParamStart(), ":")
