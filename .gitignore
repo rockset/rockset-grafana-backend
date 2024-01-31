@@ -35,4 +35,7 @@ cypress/report.json
 
 .eslintcache
 .envrc
+.DS_Store
 
+rockset-backend-datasource/
+rockset-backend-datasource-*.zip

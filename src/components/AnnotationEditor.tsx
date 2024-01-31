@@ -1,4 +1,4 @@
-import React, {ChangeEvent} from 'react';
+import React, {ChangeEvent, useEffect} from 'react';
 import {InlineField, Input, TextArea} from '@grafana/ui';
 import {QueryEditorProps} from '@grafana/data';
 import {DataSource} from '../datasource';
@@ -7,6 +7,10 @@ import {RocksetDataSourceOptions, RocksetQuery} from '../types';
 type Props = QueryEditorProps<DataSource, RocksetQuery, RocksetDataSourceOptions>;
 
 export function AnnotationEditor({query, onChange, onRunQuery}: Props) {
+    useEffect(() => {
+        onChange({...query, queryParamStart: ':startTime', queryParamStop: ':stopTime'});
+    }, [onChange]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const onQueryParamStartChange = (event: ChangeEvent<HTMLInputElement>) => {
         onChange({...query, queryParamStart: event.target.value});
         onRunQuery();
@@ -27,7 +31,7 @@ export function AnnotationEditor({query, onChange, onRunQuery}: Props) {
         onRunQuery();
     };
 
-    const {queryText, queryParamStart, queryParamStop, queryTimeField} = query;
+    const {queryText, queryParamStart, queryParamStop,queryTimeField} = query;
     const labelWidth = 16, fieldWidth = 20;
 
     const defaultQuery = `SELECT

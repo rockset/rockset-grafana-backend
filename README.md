@@ -1,12 +1,168 @@
-# Grafana data source plugin template
+# Grafana Rockset Data Source Backend Plugin
 
-This template is a starting point for building a Data Source Plugin for Grafana.
+The Rockset plugin lets you write queries against your Rockset collections and visualize the results as time series in Grafana.
 
-## What are Grafana data source plugins?
+Detailed setup instructions can be found in the [Rockset documentation](https://docs.rockset.com/documentation/docs/grafana).
 
-Grafana supports a wide range of data sources, including Prometheus, MySQL, and even Datadog. There’s a good chance you can already visualize metrics from the systems you have set up. In some cases, though, you already have an in-house metrics solution that you’d like to add to your Grafana dashboards. Grafana Data Source Plugins enables integrating such solutions with Grafana.
 
-## Getting started
+## Query Types
+
+The plugin supports three types of queries:
+
+1. Metrics
+2. [Annotations](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/annotate-visualizations/)
+3. [Variables](https://grafana.com/docs/grafana/latest/dashboards/variables/)
+
+The examples below use the `_events` collection from the `commons` workspace, as it exists in every Rockset organization.
+
+## Metric Queries
+
+The query has two required query parameters, named :startTime and :endTime by default, 
+which must be used in a `WHERE` clause to scope the query to the selected time period in Grafana (or you will end up querying your entire collection).
+
+A sample query to graph Rockset events grouped by 5 minute intervals
+
+```SQL
+SELECT
+    TIME_BUCKET(MINUTES(5), _events._event_time) AS _event_time,
+    COUNT(_events.type) AS count
+FROM
+    commons._events
+WHERE
+    _events._event_time > :startTime AND
+    _events._event_time < :stopTime
+GROUP BY
+    _event_time
+ORDER BY
+    _event_time DESC
+```
+
+![events](src/img/events.png)
+
+### Labeling Data
+
+You can use one column of the result to label the data, e.g. in the below query the type is the label column
+
+```SQL
+SELECT
+    TIME_BUCKET(MINUTES(5), _events._event_time) AS _event_time,
+    COUNT(_events.type) AS count,
+    e.kind AS label
+FROM
+    commons._events
+WHERE
+    _events._event_time > :startTime AND
+    _events._event_time < :stopTime 
+GROUP BY
+    _event_time,
+    label
+ORDER BY
+    _event_time DESC
+```
+note that the label column must exist in the SQL query, in this case `label`
+
+![metrics options](src/img/metrics-options.png)
+
+![events by kind](src/img/events-by-kind.png)
+
+## Annotation Queries
+
+You can also use Rockset to store annotations and display them in Grafana.
+
+```SQL
+SELECT
+    e._event_time as _event_time,
+    CASE
+        WHEN e.message IS NOT NULL THEN e.message
+        ELSE 'no text found'
+    END AS text,
+    FORMAT('type={},kind={}', e.type, e.kind) AS tags
+FROM
+    commons._events e
+WHERE
+  e._event_time > :startTime AND
+  e._event_time < :stopTime AND
+  e.type = 'ERROR'
+ORDER BY
+    time DESC
+```
+
+![annotation options](src/img/annotation-options.png)
+
+Grafana only auto-detects the time and text fields, so you need to manually select any other field.
+![annotation fields](src/img/annotation-fields.png)
+
+Once the annotations are configured, they will appear on the graph.
+
+![events by kind](src/img/events-by-kind-with-annotations.png)
+
+## Variable Queries
+
+You can extract variables using SQL queries
+
+```SQL
+select
+  e.kind
+from
+  commons._events e
+group by
+  kind
+ORDER BY
+  kind
+```
+
+and then use them to interpolate variables into queries
+
+```SQL
+SELECT
+    TIME_BUCKET(MINUTES(5), _events._event_time) AS _event_time,
+    COUNT(_events.type) AS count,
+    e.kind AS label
+FROM
+    commons._events
+WHERE
+    _events._event_time > :startTime AND
+    _events._event_time < :stopTime AND
+    e.kind LIKE '$kind'
+GROUP BY
+    _event_time,
+    label
+ORDER BY
+    _event_time DESC
+```
+
+![events by kind](src/img/filtered-events.png)
+
+You can include an `ALL` option using the SQL wildcard character `%`
+
+![all option](src/img/all-option.png)
+
+# Installation
+
+Install the plugin using the grafana-cli. Note that the plugin require Grafana 10!
+
+```bash
+grafana-cli \
+  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+  plugins install rockset-backend-datasource
+```
+
+## Test-driving the plugin
+
+```bash
+docker run -d \
+    -p 3000:3000 \
+    -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=rockset-backend-datasource" \
+    --name=grafana \
+    grafana/grafana:10.0.3
+docker exec grafana \
+    grafana cli \
+    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+    plugins install rockset-backend-datasource
+docker restart grafana
+```
+
+## Plugin Development
 
 ### Backend
 
@@ -84,50 +240,3 @@ Grafana supports a wide range of data sources, including Prometheus, MySQL, and 
 
    npm run lint:fix
    ```
-
-# Distributing your plugin
-
-When distributing a Grafana plugin either within the community or privately the plugin must be signed so the Grafana application can verify its authenticity. This can be done with the `@grafana/sign-plugin` package.
-
-_Note: It's not necessary to sign a plugin during development. The docker development environment that is scaffolded with `@grafana/create-plugin` caters for running the plugin without a signature._
-
-## Initial steps
-
-Before signing a plugin please read the Grafana [plugin publishing and signing criteria](https://grafana.com/legal/plugins/#plugin-publishing-and-signing-criteria) documentation carefully.
-
-`@grafana/create-plugin` has added the necessary commands and workflows to make signing and distributing a plugin via the grafana plugins catalog as straightforward as possible.
-
-Before signing a plugin for the first time please consult the Grafana [plugin signature levels](https://grafana.com/legal/plugins/#what-are-the-different-classifications-of-plugins) documentation to understand the differences between the types of signature level.
-
-1. Create a [Grafana Cloud account](https://grafana.com/signup).
-2. Make sure that the first part of the plugin ID matches the slug of your Grafana Cloud account.
-   - _You can find the plugin ID in the `plugin.json` file inside your plugin directory. For example, if your account slug is `acmecorp`, you need to prefix the plugin ID with `acmecorp-`._
-3. Create a Grafana Cloud API key with the `PluginPublisher` role.
-4. Keep a record of this API key as it will be required for signing a plugin
-
-## Signing a plugin
-
-### Using Github actions release workflow
-
-If the plugin is using the github actions supplied with `@grafana/create-plugin` signing a plugin is included out of the box. The [release workflow](./.github/workflows/release.yml) can prepare everything to make submitting your plugin to Grafana as easy as possible. Before being able to sign the plugin however a secret needs adding to the Github repository.
-
-1. Please navigate to "settings > secrets > actions" within your repo to create secrets.
-2. Click "New repository secret"
-3. Name the secret "GRAFANA_API_KEY"
-4. Paste your Grafana Cloud API key in the Secret field
-5. Click "Add secret"
-
-#### Push a version tag
-
-To trigger the workflow we need to push a version tag to github. This can be achieved with the following steps:
-
-1. Run `npm version <major|minor|patch>`
-2. Run `git push origin main --follow-tags`
-
-## Learn more
-
-Below you can find source code for existing app plugins and other related documentation.
-
-- [Basic data source plugin example](https://github.com/grafana/grafana-plugin-examples/tree/master/examples/datasource-basic#readme)
-- [`plugin.json` documentation](https://grafana.com/developers/plugin-tools/reference-plugin-json)
-- [How to sign a plugin?](https://grafana.com/developers/plugin-tools/publish-a-plugin/sign-a-plugin)

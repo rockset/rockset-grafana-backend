@@ -9,4 +9,5 @@ export const plugin = new DataSourcePlugin<DataSource, RocksetQuery, RocksetData
     .setConfigEditor(ConfigEditor)
     .setQueryEditor(QueryEditor)
     // TODO this should be replaced by DataSourceVariableSupport
-    .setVariableQueryEditor(VariableQueryEditor);
+    // .setVariableQueryEditor(VariableQueryEditor)
+;

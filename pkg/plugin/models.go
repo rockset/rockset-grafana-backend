@@ -13,10 +13,10 @@ type DatasourceModel struct {
 }
 
 type BaseQueryModel struct {
-	Datasource   Datasource `json:"datasource"`
-	RefID        string     `json:"refId"`
-	DatasourceID int32      `json:"datasourceId"`
-	IntervalMs   uint64     `json:"intervalMs"`
+	Datasource   RocksetDatasource `json:"datasource"`
+	RefID        string            `json:"refId"`
+	DatasourceID int32             `json:"datasourceId"`
+	IntervalMs   uint64            `json:"intervalMs"`
 }
 
 type QueryModel struct {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,45 +19,34 @@ import (
 	"github.com/rockset/rockset-go-client/option"
 )
 
-type Annotation struct {
-	Datasource struct {
-		Type string `json:"type"`
-		Uid  string `json:"uid"`
-	} `json:"datasource"`
-	DatasourceId  int           `json:"datasourceId"`
-	IntervalMs    int           `json:"intervalMs"`
-	Limit         int           `json:"limit"`
-	MatchAny      bool          `json:"matchAny"`
-	MaxDataPoints int           `json:"maxDataPoints"`
-	RefId         string        `json:"refId"`
-	Tags          []interface{} `json:"tags"`
-	Type          string        `json:"type"`
-}
-
-// Make sure Datasource implements required interfaces. This is important to do
+// Make sure RocksetDatasource implements required interfaces. This is important to do
 // since otherwise we will only get a not implemented error response from plugin in
 // runtime. In this example datasource instance implements backend.QueryDataHandler,
 // backend.CheckHealthHandler interfaces. Plugin should not implement all these
 // interfaces - only those which are required for a particular task.
 var (
-	_ backend.QueryDataHandler      = (*Datasource)(nil)
-	_ backend.CheckHealthHandler    = (*Datasource)(nil)
-	_ instancemgmt.InstanceDisposer = (*Datasource)(nil)
+	_ backend.QueryDataHandler      = (*RocksetDatasource)(nil)
+	_ backend.CheckHealthHandler    = (*RocksetDatasource)(nil)
+	_ instancemgmt.InstanceDisposer = (*RocksetDatasource)(nil)
 )
 
-// NewDatasource creates a new datasource instance.
-func NewDatasource(_ context.Context, _ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-	return &Datasource{}, nil
+// NewRocksetDatasource creates a new datasource instance.
+func NewRocksetDatasource(_ context.Context, _ backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
+	return &RocksetDatasource{
+		RockFactory,
+	}, nil
 }
 
-// Datasource is an example datasource which can respond to data queries, reports
+// RocksetDatasource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
-type Datasource struct{}
+type RocksetDatasource struct {
+	ClientFactory func(...rockset.RockOption) (RockClient, error) `json:"-"`
+}
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
 // created. As soon as datasource settings change detected by SDK old datasource instance will
 // be disposed and a new one will be created using NewSampleDatasource factory function.
-func (d *Datasource) Dispose() {
+func (d *RocksetDatasource) Dispose() {
 	// Clean up datasource instance resources.
 }
 
@@ -66,7 +54,7 @@ func (d *Datasource) Dispose() {
 // req contains the queries []DataQuery (where each query contains RefID as a unique identifier).
 // The QueryDataResponse contains a map of RefID to the response for each query, and each response
 // contains Frames ([]*Frame).
-func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
+func (d *RocksetDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	apiKey, found := req.PluginContext.DataSourceInstanceSettings.DecryptedSecureJSONData["apiKey"]
 	if !found {
 		return nil, fmt.Errorf("could not locate apiKey")
@@ -82,9 +70,20 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 		return nil, fmt.Errorf("could not locate virtual instance id")
 	}
 
-	rs, err := rockset.NewClient(rockset.WithAPIKey(apiKey), rockset.WithAPIServer(server))
+	rs, err := d.ClientFactory(rockset.WithAPIKey(apiKey), rockset.WithAPIServer(server),
+		rockset.WithCustomHeader("rockset-grafana-backend", "v0.3"))
 	if err != nil {
-		return nil, fmt.Errorf("could create Rockset client: %w", err)
+		id := "unknown"
+		if len(req.Queries) > 0 {
+			id = req.Queries[0].RefID
+		}
+
+		return &backend.QueryDataResponse{
+			Responses: map[string]backend.DataResponse{
+				id: backend.ErrDataResponse(backend.StatusUnknown,
+					fmt.Sprintf("could create Rockset datasource: %v", err)),
+			},
+		}, nil
 	}
 
 	// create response struct
@@ -113,7 +112,7 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 }
 
 // AnnotationsQuery handles annotation queries from grafana
-func AnnotationsQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) (response backend.DataResponse) {
+func AnnotationsQuery(ctx context.Context, rs RockClient, vi string, query backend.DataQuery) (response backend.DataResponse) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.DefaultLogger.Error("recovered from panic", "error", r)
@@ -132,7 +131,6 @@ func AnnotationsQuery(ctx context.Context, rs Queryer, vi string, query backend.
 
 	options := buildQueryOptions(qm, query.TimeRange.From, query.TimeRange.To, vi)
 	log.DefaultLogger.Info("executing annotations query", "SQL", qm.QueryText)
-
 	qr, err := rs.Query(ctx, qm.QueryText, options...)
 	if err != nil {
 		return errorToResponse(err)
@@ -144,16 +142,21 @@ func AnnotationsQuery(ctx context.Context, rs Queryer, vi string, query backend.
 			"Query must not use 'SELECT *', instead explicitly specify the columns to return")
 	}
 
-	frame := makeFrame("variables", qm.QueryText, qr)
-	field := extractAnnotationsField(qr.ColumnFields, qr.Results)
-	frame.Fields = append(frame.Fields, field...)
+	frame := makeFrame("annotations", qm.QueryText, qr)
+	fields, err := extractWideFields(qm.QueryTimeField, "", "", qr)
+	if err != nil {
+		errMsg := fmt.Sprintf("failed to extract fields: %v", err)
+		return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
+	}
+
+	frame.Fields = append(frame.Fields, fields...)
 	response.Frames = append(response.Frames, frame)
 
 	return response
 }
 
 // VariablesQuery returns list of values for template variables
-func VariablesQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) (response backend.DataResponse) {
+func VariablesQuery(ctx context.Context, rs RockClient, vi string, query backend.DataQuery) (response backend.DataResponse) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.DefaultLogger.Error("recovered from panic", "error", r)
@@ -170,9 +173,12 @@ func VariablesQuery(ctx context.Context, rs Queryer, vi string, query backend.Da
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("failed to unmarshal query: %v", err.Error()))
 	}
 
-	options := buildQueryOptions(qm, query.TimeRange.From, query.TimeRange.To, vi)
-	log.DefaultLogger.Info("executing variables query", "SQL", qm.QueryText)
+	var options []option.QueryOption
+	if vi != "" {
+		options = append(options, option.WithVirtualInstance(vi))
+	}
 
+	log.DefaultLogger.Info("executing variables query", "SQL", qm.QueryText)
 	qr, err := rs.Query(ctx, qm.QueryText, options...)
 	if err != nil {
 		return errorToResponse(err)
@@ -192,7 +198,7 @@ func VariablesQuery(ctx context.Context, rs Queryer, vi string, query backend.Da
 }
 
 // MetricsQuery executes a single query and returns the result
-func MetricsQuery(ctx context.Context, rs Queryer, vi string, query backend.DataQuery) backend.DataResponse {
+func MetricsQuery(ctx context.Context, rs RockClient, vi string, query backend.DataQuery) backend.DataResponse {
 	defer func() {
 		if r := recover(); r != nil {
 			log.DefaultLogger.Error("recovered from panic", "error", r)
@@ -236,35 +242,17 @@ func MetricsQuery(ctx context.Context, rs Queryer, vi string, query backend.Data
 	log.DefaultLogger.Debug("extracted labels", "labels", labels)
 
 	for _, label := range labels {
+		log.DefaultLogger.Info("processing label", "label", label)
 		frame := makeFrame("metrics", qm.QueryText, qr)
-		for i, c := range qr.ColumnFields {
-			// skip the time field and the label column
-			if c.Name == qm.QueryTimeField || c.Name == qm.QueryLabelColumn {
-				continue
-			}
-			log.DefaultLogger.Debug("column", "i", i, "name", c.Name, "label", label)
 
-			fields, err := extractMetricsFields(qm.QueryTimeField, c.Name, qm.QueryLabelColumn, label, qr.Results)
-			if err != nil {
-				errMsg := fmt.Sprintf("failed to create frame for %s: %v", c.Name, err)
-				return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
-			}
-
-			log.DefaultLogger.Info("adding frame", "fields", len(fields), "name", c.Name, "i", i)
-			var length int
-			for j, f := range fields {
-				log.DefaultLogger.Info("field", "prev", length, "length", f.Len(), "name", f.Name, "j", j)
-				if length > 0 && length != f.Len() {
-					log.DefaultLogger.Error("inconsistent field length", "field", f.Name, "length", f.Len(), "prev", length)
-					return backend.ErrDataResponse(backend.StatusUnknown, fmt.Sprintf(
-						"field %s has inconsistent length: %d != %d", f.Name, length, f.Len()))
-				}
-				length = f.Len()
-			}
-			// TODO we might want to use frame.RowLen() here to see if we're about to add a field which won't work
-			frame.Fields = append(frame.Fields, fields...)
-			response.Frames = append(response.Frames, frame)
+		fields, err := extractWideFields(qm.QueryTimeField, qm.QueryLabelColumn, label, qr)
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to extract fields for label %s: %v", label, err)
+			return backend.ErrDataResponse(backend.StatusUnknown, errMsg)
 		}
+
+		log.DefaultLogger.Info("adding frame", "fields", len(fields), "label", label)
+		frame.Fields = append(frame.Fields, fields...)
 		response.Frames = append(response.Frames, frame)
 	}
 
@@ -275,33 +263,33 @@ func buildQueryOptions[T queryModel](qm T, from, to time.Time, vi string) []opti
 	var options []option.QueryOption
 	var opts []any
 
-	log.DefaultLogger.Info("query options",
+	log.DefaultLogger.Info("query parameters",
 		"interval", qm.GetIntervalMs(),
 		"max data points", qm.GetMaxDataPoints(),
 		"from", from,
 		"to", to,
 		"duration", to.Sub(from).String())
 
-	if qm.GetIntervalMs() > 0 {
-		opts = append(opts, "interval", qm.GetIntervalMs())
-		options = append(options, option.WithParameter("interval", "int", strconv.FormatUint(qm.GetIntervalMs(), 10)))
-	}
+	// if qm.GetIntervalMs() > 0 {
+	// 	opts = append(opts, "interval", qm.GetIntervalMs())
+	// 	options = append(options, option.WithParameter(":interval", "int", strconv.FormatUint(qm.GetIntervalMs(), 10)))
+	// }
 
 	// set defaults and trim ":" from the start/stop
 	start := strings.TrimPrefix(qm.GetQueryParamStart(), ":")
 	if start != "" {
-		opts = append(opts, start, from.UTC().Format(time.RFC3339))
+		opts = append(opts, ":"+start, from.UTC().Format(time.RFC3339)) // ":" just for logging
 		options = append(options, option.WithParameter(start, "timestamp", from.UTC().Format(time.RFC3339)))
 	}
 
 	stop := strings.TrimPrefix(qm.GetQueryParamStop(), ":")
 	if stop != "" {
-		opts = append(opts, stop, to.UTC().Format(time.RFC3339))
+		opts = append(opts, ":"+stop, to.UTC().Format(time.RFC3339)) // ":" just for logging
 		options = append(options, option.WithParameter(stop, "timestamp", to.UTC().Format(time.RFC3339)))
 	}
 
 	if qm.GetMaxDataPoints() > 0 {
-		opts = append(opts, "max data points", qm.GetMaxDataPoints())
+		opts = append(opts, "row limit", qm.GetMaxDataPoints())
 		options = append(options, option.WithDefaultRowLimit(qm.GetMaxDataPoints()))
 	}
 
@@ -332,12 +320,14 @@ func errorToResponse(err error) backend.DataResponse {
 }
 
 func logQueryResponse(qr openapi.QueryResponse) {
+	page := qr.GetPagination()
 	log.DefaultLogger.Info("query response",
 		"elapsedTime", qr.Stats.ElapsedTimeMs,
-		"docs", qr.GetResultsTotalDocCount(),
+		"docs", len(qr.Results),
 		"errors", qr.GetQueryErrors(),
 		"warnings", strings.Join(qr.GetWarnings(), ", "),
 		"queryID", qr.GetQueryId(),
+		"pagination", page.GetNextCursor(),
 	)
 }
 
@@ -357,7 +347,7 @@ func makeFrame(name, query string, qr openapi.QueryResponse) *data.Frame {
 			},
 			{
 				FieldConfig: data.FieldConfig{DisplayName: "documents in the result"},
-				Value:       float64(qr.GetResultsTotalDocCount()),
+				Value:       float64(len(qr.Results)),
 			},
 		},
 	}
@@ -417,27 +407,7 @@ func extractVariableField(qr []map[string]interface{}) ([]*data.Field, error) {
 	return []*data.Field{field}, nil
 }
 
-func extractAnnotationsField(columns []openapi.QueryFieldType, qr []map[string]interface{}) []*data.Field {
-	var fields []*data.Field
-	for _, c := range columns {
-		v := firstValue(c.Name, qr)
-
-		switch v.(type) {
-		case string:
-			fields = append(fields, data.NewField(c.Name, nil, extractColumn[string](c.Name, qr)))
-		case float64:
-			fields = append(fields, data.NewField(c.Name, nil, extractColumn[float64](c.Name, qr)))
-		case bool:
-			fields = append(fields, data.NewField(c.Name, nil, extractColumn[bool](c.Name, qr)))
-		default:
-			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", v), "value", v)
-		}
-	}
-
-	return fields
-}
-
-func firstValue(name string, qr []map[string]interface{}) interface{} {
+func firstValueInColumn(name string, qr []map[string]interface{}) interface{} {
 	for _, row := range qr {
 		if v, found := row[name]; found && v != nil {
 			return v
@@ -447,9 +417,99 @@ func firstValue(name string, qr []map[string]interface{}) interface{} {
 	return nil
 }
 
-func extractColumn[T any](name string, qr []map[string]interface{}) []*T {
+const DefaultTimeColumn = "_event_time"
+
+// extracts fields in wide format
+// https://grafana.com/developers/plugin-tools/introduction/data-frames#wide-format
+func extractWideFields(timeColumn, labelColumn, label string, qr openapi.QueryResponse) ([]*data.Field, error) {
+	var fields []*data.Field
+
+	// the annotation query doesn't set the time column, unless changed,
+	if timeColumn == "" {
+		timeColumn = DefaultTimeColumn
+	}
+
+	// iterate over the columns, extracting each into a field for the frame
+	for i, c := range qr.ColumnFields {
+		// skip label column
+		if c.Name == labelColumn {
+			log.DefaultLogger.Debug("skipping column", "i", i, "name", c.Name)
+			continue
+		}
+		if c.Name == timeColumn {
+			times, err := extractTimeColumn(timeColumn, label, labelColumn, qr.Results)
+			if err != nil {
+				return nil, err
+			}
+			fields = append(fields, data.NewField("time", nil, times))
+			continue
+		}
+		log.DefaultLogger.Debug("processing column", "i", i, "name", c.Name, "label", label)
+
+		// get the first value of the column and assume it is what every value will be the same type
+		t := firstValueInColumn(c.Name, qr.Results)
+
+		// extract the values from the column
+		switch t.(type) {
+		case bool:
+			fields = append(fields, data.NewField(c.Name, data.Labels{labelColumn: label},
+				extractColumnValues[bool](c.Name, label, labelColumn, qr.Results)))
+		case string:
+			fields = append(fields, data.NewField(c.Name, data.Labels{labelColumn: label},
+				extractColumnValues[string](c.Name, label, labelColumn, qr.Results)))
+		case float64:
+			fields = append(fields, data.NewField(c.Name, data.Labels{labelColumn: label},
+				extractColumnValues[float64](c.Name, label, labelColumn, qr.Results)))
+		default:
+			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", t), "value", t)
+		}
+	}
+
+	return fields, nil
+}
+
+func extractTimeColumn(name, label, labelColumn string, qr []map[string]interface{}) ([]time.Time, error) {
+	var times []time.Time
+
+	for _, row := range qr {
+		if labelColumn != "" {
+			if l, found := row[labelColumn]; found && l != label {
+				log.DefaultLogger.Debug("skipping column", "name", name)
+				continue
+			}
+		}
+
+		value, found := row[name]
+		if !found {
+			return times, fmt.Errorf("time column not found: %s", name)
+		}
+
+		switch value.(type) {
+		case string:
+			t, err := time.Parse(time.RFC3339Nano, value.(string))
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert %s to time: %w", value, err)
+			}
+			times = append(times, t)
+		default:
+			return nil, fmt.Errorf("column %s is of type '%T', not the expected type 'string'", name, value)
+		}
+	}
+
+	return times, nil
+}
+
+func extractColumnValues[T any](name, label, labelColumn string, qr []map[string]interface{}) []*T {
 	var column []*T
 	for i, row := range qr {
+		if labelColumn != "" {
+			if l, found := row[labelColumn]; found && l != label {
+				// skip rows which doesn't match the label
+				log.DefaultLogger.Debug("skipping row due to missing label", "want", label, "is", l)
+				continue
+			}
+		}
+
 		value, found := row[name]
 		if !found {
 			log.DefaultLogger.Error("column not found", "column", name, "i", i)
@@ -469,77 +529,6 @@ func extractColumn[T any](name string, qr []map[string]interface{}) []*T {
 	}
 
 	return column
-}
-
-// extracts fields in wide format
-// https://grafana.com/developers/plugin-tools/introduction/data-frames#wide-format
-func extractMetricsFields(timeField, valueField, labelColumn, label string, qr []map[string]interface{}) ([]*data.Field, error) {
-	var times []time.Time
-	var floatValues []float64
-	var boolValues []bool
-	var stringValues []string
-
-	var labels map[string]string
-	// empty label means there is no label column and labels should use the zero value, which is nil
-	if labelColumn != "" {
-		labels = map[string]string{labelColumn: label}
-	}
-
-	// iterate over the rows
-	for i, row := range qr {
-		if labelColumn != "" {
-			if l, found := row[labelColumn]; found && l != label {
-				// skip rows which doesn't match the label
-				log.DefaultLogger.Debug("skipping row due to missing label", "label", label)
-				continue
-			}
-		}
-
-		// the value might not be present in every row
-		v, found := row[valueField]
-		if !found {
-			log.DefaultLogger.Debug("skipping row due to missing value", "value", valueField)
-			continue
-		}
-
-		switch v.(type) {
-		case bool:
-			boolValues = append(boolValues, v.(bool))
-		case string:
-			stringValues = append(stringValues, v.(string))
-		case float64:
-			floatValues = append(floatValues, v.(float64))
-		default:
-			if v == "null" {
-				log.DefaultLogger.Debug("skipping row due to empty value", "value", valueField)
-				continue
-			}
-			log.DefaultLogger.Error("unknown type", "type", fmt.Sprintf("%T", v),
-				"value", v, "column", valueField, "i", i)
-			continue
-		}
-
-		t, err := parseTime(timeField, row)
-		if err != nil {
-			return nil, err
-		}
-		times = append(times, t)
-	}
-
-	// add the time dimension
-	fields := []*data.Field{data.NewField("time", labels, times)}
-	// TODO should we add all fields > 0? or should we enfoce that all values in a field are of the same type?
-	if len(floatValues) > 0 {
-		fields = append(fields, data.NewField(valueField, labels, floatValues))
-	} else if len(stringValues) > 0 {
-		fields = append(fields, data.NewField(valueField, labels, stringValues))
-	} else if len(boolValues) > 0 {
-		fields = append(fields, data.NewField(valueField, labels, boolValues))
-	} else {
-		return nil, fmt.Errorf("failed to create frame for %s: no values found", valueField)
-	}
-
-	return fields, nil
 }
 
 // extract the set of label values from the label column
@@ -573,37 +562,16 @@ func extractLabelValues(labelColumn string, results []map[string]interface{}) ([
 	if len(labels) == 0 {
 		log.DefaultLogger.Warn("label column doesn't contain any string values", "column", labelColumn)
 		return []string{""}, nil
-		// return nil, fmt.Errorf("label column '%s' doesn't contain any string values", labelColumn)
 	}
 
 	return labels, nil
-}
-
-func parseTime(key string, fields map[string]interface{}) (time.Time, error) {
-	value, ok := fields[key]
-	if !ok {
-		// TODO include a list of available columns
-		return time.Time{}, fmt.Errorf("could not find column %s in query response", key)
-	}
-
-	v, ok := value.(string)
-	if !ok {
-		return time.Time{}, fmt.Errorf("could not cast %s (%v) %T to string", key, value, value)
-	}
-
-	t, err := time.Parse(time.RFC3339Nano, v)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to convert %s to time: %w", v, err)
-	}
-
-	return t, nil
 }
 
 // CheckHealth handles health checks sent from Grafana to the plugin.
 // The main use case for these health checks is the test button on the
 // datasource configuration page which allows users to verify that
 // a datasource is working as expected.
-func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+func (d *RocksetDatasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	log.DefaultLogger.Debug("CheckHealth called")
 
 	apiKey, found := req.PluginContext.DataSourceInstanceSettings.DecryptedSecureJSONData["apiKey"]
@@ -616,7 +584,8 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 		return healthError("unable to unmarshal json"), nil
 	}
 
-	rs, err := rockset.NewClient(rockset.WithAPIKey(apiKey), rockset.WithAPIServer(server))
+	rs, err := d.ClientFactory(rockset.WithAPIKey(apiKey), rockset.WithAPIServer(server))
+	rockset.NewClient(rockset.WithAPIKey(apiKey), rockset.WithAPIServer(server))
 	if err != nil {
 		return healthError("failed to create Rockset client: %s", err.Error()), nil
 	}
@@ -628,7 +597,7 @@ func (d *Datasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRe
 	// validate that we can connect by getting the org info
 	org, err := rs.GetOrganization(ctx)
 	if err != nil {
-		log.DefaultLogger.Error("CheckHealth failed", "err", err)
+		log.DefaultLogger.Error("CheckHealth failed", "err", err.Error())
 		return healthError("failed get connect to Rockset: %s", err.Error()), nil
 	}
 	log.DefaultLogger.Debug("CheckHealth successful", "org", org.GetId())

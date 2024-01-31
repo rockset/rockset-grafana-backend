@@ -10,7 +10,7 @@ export interface RocksetQuery extends DataQuery {
 }
 
 export const DEFAULT_QUERY: Partial<RocksetQuery> = {
-    queryText: `-- sample query
+    queryText: `-- sample metrics query
 SELECT
   TIME_BUCKET(MINUTES(5), e._event_time) AS _event_time,
   COUNT(e.type) AS count,

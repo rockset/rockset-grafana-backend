@@ -1,7 +1,7 @@
 {
   "name": "rockset-backend-datasource",
   "version": "0.3.0",
-  "description": "Rockset backend datasource",
+  "description": "Rockset SQL backend datasource. Allows you to query rockset collections using SQL, and visualize the results in Grafana. Supports annotations and variables.",
   "scripts": {
     "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
     "dev": "webpack -w -c ./.config/webpack/webpack.config.ts --env development",

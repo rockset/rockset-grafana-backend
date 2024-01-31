@@ -1,6 +1,14 @@
-import {CoreApp, DataSourceInstanceSettings, MetricFindValue, ScopedVars, VariableSupportType} from '@grafana/data';
+import {
+    CoreApp,
+    DataQueryRequest,
+    DataSourceInstanceSettings,
+    MetricFindValue,
+    ScopedVars,
+    VariableSupportType
+} from '@grafana/data';
 import {DataSourceWithBackend, getTemplateSrv} from '@grafana/runtime';
 import {AnnotationEditor} from './components/AnnotationEditor';
+import {VariableQueryEditor} from './components/VariableQueryEditor';
 
 import {DEFAULT_QUERY, RocksetDataSourceOptions, RocksetQuery} from './types';
 
@@ -16,21 +24,17 @@ export class DataSource extends DataSourceWithBackend<RocksetQuery, RocksetDataS
         }
 
         this.variables = {
-            // TODO set VariableQueryEditor as the editor
-            getType: () => VariableSupportType.Datasource,
-            getDefaultQuery: () => ({
-                queryTimeField: "_event_time",
-                queryLabelColumn: "label",
-                queryText: `SELECT
-     'test' AS label,
-     CURRENT_TIMESTAMP() AS _event_time
- `.trim()
+            editor: VariableQueryEditor,
+            getType: () => VariableSupportType.Custom,
+            query: (q: DataQueryRequest<RocksetQuery>) => this.query({
+                ...q,
+                targets: q.targets.map((t) => ({...t, refId: "variable-query"}))
             })
         }
     }
 
     async metricFindQuery(query: any, options?: any): Promise<MetricFindValue[]> {
-        console.log({ query, options });
+        console.log({query, options});
         // TODO;
         return [{
             text: "__TEST__"

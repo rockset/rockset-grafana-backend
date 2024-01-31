@@ -1,36 +1,45 @@
-import React, { useState } from 'react';
-import { RocksetVariableQuery } from '../types';
+import React, {ChangeEvent} from 'react';
+import {InlineField, TextArea} from '@grafana/ui';
+import {QueryEditorProps} from '@grafana/data';
+import {DataSource} from '../datasource';
+import {RocksetDataSourceOptions, RocksetQuery} from '../types';
 
-interface VariableQueryProps {
-    query: RocksetVariableQuery;
-    onChange: (query: RocksetVariableQuery, definition: string) => void;
-}
+type Props = QueryEditorProps<DataSource, RocksetQuery, RocksetDataSourceOptions>;
 
-export const VariableQueryEditor: React.FC<VariableQueryProps> = ({ onChange, query }) => {
-    const [state, setState] = useState(query);
-
-    const saveQuery = () => {
-        onChange(state, `${state.rawQuery}`);
+export function VariableQueryEditor({query, onChange, onRunQuery}: Props) {
+    const onQueryTextChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+        onChange({...query, queryText: event.target.value});
+        onRunQuery();
     };
 
-    const handleChange = (event: React.FormEvent<HTMLInputElement>) =>
-        setState({
-            ...state,
-            [event.currentTarget.name]: event.currentTarget.value,
-        });
+    const {queryText} = query;
+    const labelWidth = 16;
+
+    const defaultQuery =
+`select
+  e.kind
+from
+  commons._events e
+group by
+  kind
+ORDER BY
+  kind`
 
     return (
-        <>
-            <div className="gf-form">
-                <span className="gf-form-label width-10">Query</span>
-                <input
-                    name="rawQuery"
-                    className="gf-form-input"
-                    onBlur={saveQuery}
-                    onChange={handleChange}
-                    value={state.rawQuery}
-                />
-            </div>
-        </>
+        <div>
+            <InlineField
+                label="Query Text"
+                labelWidth={labelWidth}
+                grow={true}
+                tooltip="Rockset SQL query to get the data. Must contain a WHERE clause which limits the query based on the startTime and stopTime."
+            >
+                <TextArea
+                    style={{height: '300px'}}
+                    value={queryText || defaultQuery}
+                    onChange={onQueryTextChange}
+                >
+                </TextArea>
+            </InlineField>
+        </div>
     );
-};
+}
