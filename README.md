@@ -12,7 +12,7 @@ see the [Grafana plugin installation documentation](https://grafana.com/docs/gra
 The quckstart is to use the `grafana cli` to install the plugin from the Rockset public S3 bucket:
 ```
 grafana cli \
-  --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+  --pluginUrl https://github.com/rockset/rockset-grafana-backend/releases/download/v0.3.0/rockset-backend-datasource-0.3.0.zip \
   plugins install rockset-backend-datasource
 ```
 
@@ -249,7 +249,7 @@ docker run -d \
     grafana/grafana:10.0.3
 docker exec grafana \
     grafana cli \
-    --pluginUrl https://rockset-public.s3-us-west-2.amazonaws.com/rockset-backend-datasource-0.3.0.zip \
+    --pluginUrl https://github.com/rockset/rockset-grafana-backend/releases/download/v0.3.0/rockset-backend-datasource-0.3.0.zip \
     plugins install rockset-backend-datasource
 docker restart grafana
 ```
