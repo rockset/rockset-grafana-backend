@@ -1,12 +1,16 @@
 {
-  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
   "name": "Rockset",
   "id": "rockset-backend-datasource",
   "metrics": true,
   "backend": true,
   "alerting": true,
-  "executable": "gpx_rockset-grafana",
+  "annotations": true,
+  "logs": true,
+  "tracing": true,
+  "executable": "gpx_rockset",
+  "category": "sql",
   "info": {
     "description": "Plugin for Rockset Collections as datasources",
     "author": {
@@ -25,7 +29,11 @@
     },
     "links": [
       {
-        "name": "Website",
+        "name": "Documentation",
+        "url": "https://docs.rockset.com/documentation/docs/grafana"
+      },
+      {
+        "name": "GitHub",
         "url": "https://github.com/rockset/rockset-grafana-backend"
       },
       {
@@ -33,12 +41,29 @@
         "url": "https://github.com/rockset/rockset-grafana-backend/blob/master/LICENSE"
       }
     ],
-    "screenshots": [],
-    "version": "0.2.1",
-    "updated": "2023-11-05"
+    "screenshots": [
+      {
+        "name": "Rockset Events",
+        "path": "img/events.png"
+      },
+      {
+        "name": "Rockset Events by Kind",
+        "path": "img/events-by-kind.png"
+      },
+      {
+        "name": "Rockset Events by Kind with Annotations",
+        "path": "img/events-by-kind-with-annotations.png"
+      },
+      {
+        "name": "Rockset Events filtered by Kind",
+        "path": "img/filtered-events.png"
+      }
+    ],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
   },
   "dependencies": {
-    "grafanaDependency": "^9.2.5",
+    "grafanaDependency": ">=10.0.3",
     "plugins": []
   }
 }
