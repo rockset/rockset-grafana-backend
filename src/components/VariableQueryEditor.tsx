@@ -16,14 +16,21 @@ export function VariableQueryEditor({query, onChange, onRunQuery}: Props) {
     const labelWidth = 16;
 
     const defaultQuery =
-`select
-  e.kind
-from
-  commons._events e
-group by
-  kind
+`SELECT
+    TIME_BUCKET(MINUTES(5), e._event_time) AS _event_time,
+    COUNT(e.type) AS count,
+    e.kind AS label
+FROM
+    commons._events e
+WHERE
+    e._event_time > :startTime
+    AND e._event_time < :stopTime
+    AND e.kind LIKE '$kind'
+GROUP BY
+    e._event_time,
+    e.label
 ORDER BY
-  kind`
+    e._event_time DESC`
 
     return (
         <div>

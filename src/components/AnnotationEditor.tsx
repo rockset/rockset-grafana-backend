@@ -34,7 +34,8 @@ export function AnnotationEditor({query, onChange, onRunQuery}: Props) {
     const {queryText, queryParamStart, queryParamStop,queryTimeField} = query;
     const labelWidth = 16, fieldWidth = 20;
 
-    const defaultQuery = `SELECT
+    const defaultQuery =
+`SELECT
     e._event_time,
     CASE
         WHEN e.message IS NOT NULL THEN e.message
@@ -45,9 +46,10 @@ FROM
     commons._events e
 WHERE
   e._event_time > :startTime AND
-  e._event_time < :stopTime
+  e._event_time < :stopTime AND
+  e.type = 'ERROR'
 ORDER BY
-    time DESC`
+  e. _event_time DESC`
 
     return (
         <>
