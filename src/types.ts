@@ -26,7 +26,7 @@ GROUP BY
   _event_time,
   label
 ORDER BY
-  _event_time`,
+  _event_time DESC`,
     queryParamStart: ':startTime',
     queryParamStop: ':stopTime',
     queryTimeField: '_event_time',
